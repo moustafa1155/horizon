@@ -13,7 +13,7 @@ const Sidebar = ({ open, onClose, collapsed = false, onToggle }) => {
     <div
       className={`${
         collapsed ? "w-[290px] xl:w-[80px]" : "w-[290px]"
-      } linear fixed !z-50 flex min-h-full flex-col bg-white pb-10 shadow-2xl shadow-white/5 transition-all duration-300 dark:!bg-navy-800 dark:text-white md:!z-50 lg:!z-50 xl:!z-0 ${
+      } linear fixed top-0 !z-50 flex h-screen h-[100dvh] flex-col overflow-y-auto overflow-x-hidden overscroll-contain [&>*]:shrink-0 bg-white pb-10 shadow-2xl shadow-white/5 transition-all duration-300 dark:!bg-navy-800 dark:text-white md:!z-50 lg:!z-50 xl:!z-0 ${
         open ? "translate-x-0" : "-translate-x-96"
       }`}
     >
