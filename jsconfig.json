@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "assets/*": ["./src/assets/*"],
+      "components/*": ["./src/components/*"],
+      "layouts/*": ["./src/layouts/*"],
+      "views/*": ["./src/views/*"],
+      "variables/*": ["./src/variables/*"],
+      "routes.jsx": ["./src/routes.jsx"],
+      "lib/*": ["./src/lib/*"]
+    }
+  },
+  "include": ["src"]
+}
