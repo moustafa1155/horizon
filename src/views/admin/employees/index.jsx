@@ -1,3 +1,4 @@
+import {hostedPreview} from "lib/previewMode";
 import { useMemo, useState } from "react";
 import Card from "components/card";
 import { FiSearch, FiUsers, FiMapPin } from "react-icons/fi";
@@ -87,7 +88,7 @@ export default function Employees() {
         </button>
       )}
       <p className="text-sm text-gray-700 dark:text-gray-300">
-        Employee records are loaded from the database.
+        {hostedPreview ? "Preview employees are saved in this browser only." : "Employee records are loaded from the database."}
       </p>
       {adding&&<EmployeeForm allowAssignment={user?.role === "Admin"} employee={editingEmployee} readOnly={!can("employees", "manage") && !(isPreview && user?.role === "Admin")} onCancel={()=>{setAdding(false);setEditingEmployee(null)}} onSave={async draft=>{if(!can('employees','manage') && !(isPreview && user?.role === "Admin"))return 'You do not have permission to add employees.';const error=await save(draft,editingEmployee?.id);if(!error){resetFilters();setAdding(false);}return error;}}/>}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

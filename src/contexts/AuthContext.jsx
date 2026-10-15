@@ -1,3 +1,4 @@
+import {hostedPreview} from "lib/previewMode";
 import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Link } from "lib/navigation";
 import {
@@ -18,7 +19,7 @@ const AuthContext = createContext(null);
 const PREVIEW_ID = "horizon-temporary-preview";
 const EMPLOYEE_PREVIEW_ID = "horizon-employee-preview";
 const MANAGER_PREVIEW_ID = "horizon-manager-preview";
-const previewAvailable = process.env.NODE_ENV === "development";
+const previewAvailable = process.env.NODE_ENV === "development" || hostedPreview;
 const previewUser = {
   id: PREVIEW_ID,
   name: "Workspace preview",
@@ -37,6 +38,7 @@ const employeePreviewUser = {
 };
 const managerPreviewUser = { ...previewUser, id: MANAGER_PREVIEW_ID, name: "Branch Manager preview", role: "Branch Manager", permissions: rolePermissions("Branch Manager"), managerPreview: true };
 function readState() {
+  if(hostedPreview)return {users:[],session:window.sessionStorage.getItem(SESSION_KEY),error:""};
   try {
     return {
       users: loadUsers(window.localStorage),
@@ -213,7 +215,7 @@ export function AuthProvider({ children }) {
         saveUser,
         setRemoved,
         can: (page, action = "view") =>
-          (!user?.preview || user?.employeePreview || user?.managerPreview || action === "view") &&
+          (!user?.preview || hostedPreview || user?.employeePreview || user?.managerPreview || action === "view") &&
           canAccess(user, page, action),
         firstPage: firstPage(user),
       }}

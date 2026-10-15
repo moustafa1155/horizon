@@ -1,3 +1,5 @@
+import { hostedPreview } from "lib/previewMode";
+import PreviewLanding from "./PreviewLanding";
 import { useState } from "react";
 import { Navigate } from "lib/navigation";
 import Login from "./index";
@@ -19,7 +21,10 @@ export default function LoginEntry() {
     setPreviewPage("weekly-stock-checks");
     startPreview("Employee");
   }
-  function previewManager() { setPreviewPage("default"); startPreview("Branch Manager"); }
+  function previewManager() {
+    setPreviewPage("default");
+    startPreview("Branch Manager");
+  }
   if (error)
     return (
       <main className="min-h-screen bg-lightPrimary p-10 text-navy-700">
@@ -32,7 +37,9 @@ export default function LoginEntry() {
     return (
       <Navigate
         to={`/admin/${
-          user.managerPreview ? "employees" : user.employeePreview
+          user.managerPreview
+            ? "employees"
+            : user.employeePreview
             ? "weekly-stock-checks"
             : user.preview
             ? previewPage
@@ -41,8 +48,18 @@ export default function LoginEntry() {
         replace
       />
     );
+  if (hostedPreview)
+    return (
+      <PreviewLanding
+        onEmployeePreview={previewEmployees}
+        onManagerPreview={previewManager}
+      />
+    );
   return needsSetup ? (
-    <SetupAdmin onEmployeePreview={previewEmployees} onManagerPreview={previewManager} />
+    <SetupAdmin
+      onEmployeePreview={previewEmployees}
+      onManagerPreview={previewManager}
+    />
   ) : (
     <Login
       onEmployeePreview={previewAvailable ? previewEmployees : undefined}

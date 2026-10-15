@@ -1,3 +1,4 @@
+import { hostedPreview } from "lib/previewMode";
 import { useAuth, PageAccess } from "../../contexts/AuthContext";
 import React from "react";
 import { Navigate, useLocation } from "lib/navigation";
@@ -98,12 +99,18 @@ export default function Admin(props) {
               {...rest}
             />
             <div className="pt-5s mx-auto mb-auto h-full min-h-[84vh] p-2 md:pr-2">
+              {hostedPreview && (
+                <p className="mb-3 rounded-xl bg-orange-50 p-3 text-sm text-orange-800">
+                  Hosted preview · Records stay in this browser · Live database
+                  is disconnected
+                </p>
+              )}
               {isPreview && (
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-brand-50 p-4 text-sm text-brand-700 dark:bg-navy-700 dark:text-white">
                   <p>
                     {user?.employeePreview
                       ? "Employee preview · Stock checks only · No account has"
-                      : "Temporary preview · Employee entries can be saved locally to the database · No account has"}
+                      : "Temporary preview · No account has"}
                     been created
                   </p>
                   <button
