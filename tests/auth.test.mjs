@@ -92,3 +92,94 @@ test("Mutation requests require an exact origin and production uses host-only se
   assert.equal(cookieName(true), "__Host-horizon-session");
   assert.equal(cookieName(false), "horizon-session");
 });
+
+test("Render uses its trusted external URL behind an internal proxy", () => {
+  const request = (origin) =>
+    new Request("http://localhost:10000/api/auth/login", {
+      method: "POST",
+      headers: {
+        origin,
+        host: "localhost:10000",
+        "x-forwarded-host": "evil.example",
+      },
+    });
+  const environment = { RENDER_EXTERNAL_URL: "https://portal.onrender.com" };
+  assert.equal(
+    sameOrigin(request("https://portal.onrender.com"), environment),
+    true
+  );
+  assert.equal(sameOrigin(request("https://evil.example"), environment), false);
+  assert.equal(
+    sameOrigin(request("http://localhost:10000"), environment),
+    false
+  );
+  assert.equal(
+    sameOrigin(request("https://portal.onrender.com"), {
+      ...environment,
+      APP_ORIGIN: "https://wrong.example",
+    }),
+    true
+  );
+  assert.equal(
+    sameOrigin(request("https://custom.example"), {
+      ...environment,
+      APP_ORIGIN: "  https://CUSTOM.example/  ",
+    }),
+    true
+  );
+  assert.equal(
+    sameOrigin(request("https://portal.onrender.com"), {
+      ...environment,
+      APP_ORIGIN: "invalid",
+    }),
+    true
+  );
+  assert.equal(
+    sameOrigin(request("http://localhost:10000"), { APP_ORIGIN: "invalid" }),
+    false
+  );
+  assert.equal(
+    sameOrigin(
+      request("https://portal.onrender.com.evil.example"),
+      environment
+    ),
+    false
+  );
+});
+test("Cross-site fetch metadata is rejected even for an allowed origin", () => {
+  const request = new Request("http://localhost:10000/api/auth/login", {
+    headers: {
+      origin: "https://portal.onrender.com",
+      "sec-fetch-site": "cross-site",
+    },
+  });
+  assert.equal(
+    sameOrigin(request, { RENDER_EXTERNAL_URL: "https://portal.onrender.com" }),
+    false
+  );
+});
+import { loginErrorMessage } from "../src/data/loginErrors.mjs";
+test("Login distinguishes settings, credentials and throttling without exposing arbitrary errors", () => {
+  assert.match(
+    loginErrorMessage(Error("Invalid request origin.")),
+    /address settings/
+  );
+  assert.equal(
+    loginErrorMessage(Error("Username or password is incorrect.")),
+    "Username or password is incorrect."
+  );
+  assert.match(
+    loginErrorMessage(
+      Error("Too many login attempts. Please try again later.")
+    ),
+    /15 minutes/
+  );
+  assert.match(
+    loginErrorMessage(Error("Sign-in is temporarily unavailable.")),
+    /temporarily unavailable/
+  );
+  assert.equal(
+    loginErrorMessage(Error("private internal diagnostic")),
+    loginErrorMessage(null)
+  );
+});

@@ -86,7 +86,7 @@ async function main() {
         "10003",
       ],
       {
-        env: { ...process.env, MONGODB_DATABASE: database, APP_ORIGIN: base },
+        env: { ...process.env, MONGODB_DATABASE: database, APP_ORIGIN: base + '/', RENDER_EXTERNAL_URL: 'https://auth-fixture.onrender.com' },
         stdio: "ignore",
         windowsHide: true,
       }

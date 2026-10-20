@@ -17,7 +17,7 @@ Then start the site and sign in. Under Users & Permissions, create accounts for 
 ## Hosting
 
 - Keep MONGODB_URI and MONGODB_DATABASE in the hosting provider's private environment settings.
-- Set APP_ORIGIN to the exact public HTTPS origin, with no trailing slash (for example, https://your-service.onrender.com). Local development can leave it unset.
+- Render automatically supplies RENDER_EXTERNAL_URL, which is trusted for origin checks behind its HTTPS proxy. For a custom domain, also set APP_ORIGIN to its HTTPS origin (for example, https://portal.example.com). Surrounding whitespace and a trailing slash are normalized. Local development can leave both unset.
 - Run the first-admin command locally against the same database that hosting uses, then deploy this version. No account password or session signing key needs to be stored in the hosting environment.
 - Production requires HTTPS: the session cookie is Secure, HTTP-only, SameSite=Strict and uses the __Host- prefix. It expires after eight hours. Development uses a separate HTTP-only cookie on localhost.
 - Account updates, password changes and account removal invalidate existing sessions. Every protected page and existing database endpoint checks the live account and session. MongoDB TTL indexes clean up expired sessions, but expiry is enforced immediately without waiting for cleanup.

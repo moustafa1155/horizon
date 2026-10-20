@@ -72,12 +72,38 @@ export function branchFilter(user) {
     ? {}
     : { branchId: user.branchId || "__unassigned__" };
 }
-export function sameOrigin(request) {
+
+function configuredOrigin(value) {
+  if (!value?.trim()) return null;
+  try {
+    const url = new URL(value.trim());
+    if (
+      !["https:", "http:"].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      url.pathname !== "/"
+    )
+      return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+export function sameOrigin(request, environment = process.env) {
   const origin = request.headers.get("origin");
-  const expected = process.env.APP_ORIGIN || new URL(request.url).origin;
-  return (
-    !!origin &&
-    origin === expected &&
-    request.headers.get("sec-fetch-site") !== "cross-site"
-  );
+  if (
+    !origin ||
+    origin === "null" ||
+    request.headers.get("sec-fetch-site") === "cross-site"
+  )
+    return false;
+  // Render terminates HTTPS before forwarding to Next.js. Trust platform/configuration
+  // origins, never a caller-supplied Host or forwarded-host header.
+  const configured = [environment.APP_ORIGIN, environment.RENDER_EXTERNAL_URL];
+  const allowed = configured.map(configuredOrigin).filter(Boolean);
+  if (!configured.some((value) => value?.trim()))
+    allowed.push(new URL(request.url).origin);
+  return allowed.includes(origin);
 }

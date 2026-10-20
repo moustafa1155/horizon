@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { loginErrorMessage } from "../../data/loginErrors.mjs";
 import { useNavigate } from "lib/navigation";
 import {
   FiEye,
@@ -22,7 +23,12 @@ const inputClass =
 // Pass an authentication provider as onSignIn({ username, password }).
 // It must resolve only after authenticating and reject on failure.
 // Role authorization and sessions belong to the authentication service.
-export default function Login({ onSignIn, onPreview, onEmployeePreview, onManagerPreview }) {
+export default function Login({
+  onSignIn,
+  onPreview,
+  onEmployeePreview,
+  onManagerPreview,
+}) {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -49,10 +55,8 @@ export default function Login({ onSignIn, onPreview, onEmployeePreview, onManage
       const page = await onSignIn({ username: username.trim(), password });
       setPassword("");
       navigate(`/admin/${page || "default"}`, { replace: true });
-    } catch {
-      setError(
-        "Unable to sign in. Check your details or contact your company administrator."
-      );
+    } catch (error) {
+      setError(loginErrorMessage(error));
     } finally {
       setPending(false);
     }
@@ -67,7 +71,10 @@ export default function Login({ onSignIn, onPreview, onEmployeePreview, onManage
         >
           <div className="mb-12">
             <p className="font-poppins text-2xl font-bold uppercase tracking-tight">
-              Taste The Best <span className="font-medium text-orange-700 dark:text-orange-300">Company Portal</span>
+              Taste The Best{" "}
+              <span className="font-medium text-orange-700 dark:text-orange-300">
+                Company Portal
+              </span>
             </p>
             <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
               Branch management workspace
@@ -166,8 +173,24 @@ export default function Login({ onSignIn, onPreview, onEmployeePreview, onManage
               Preview workspace without an account
             </button>
           )}
-          {onEmployeePreview && <button type="button" onClick={onEmployeePreview} className="mt-3 w-full rounded-xl bg-brand-500 p-3 text-sm font-bold text-white">Preview employees interface</button>}
-          {onManagerPreview && <button type="button" onClick={onManagerPreview} className="mt-3 w-full rounded-xl border border-brand-500 p-3 text-sm font-bold text-brand-500 dark:text-brand-200">Preview branch manager interface</button>}
+          {onEmployeePreview && (
+            <button
+              type="button"
+              onClick={onEmployeePreview}
+              className="mt-3 w-full rounded-xl bg-brand-500 p-3 text-sm font-bold text-white"
+            >
+              Preview employees interface
+            </button>
+          )}
+          {onManagerPreview && (
+            <button
+              type="button"
+              onClick={onManagerPreview}
+              className="mt-3 w-full rounded-xl border border-brand-500 p-3 text-sm font-bold text-brand-500 dark:text-brand-200"
+            >
+              Preview branch manager interface
+            </button>
+          )}
           {!onSignIn && (
             <p className="mt-8 border-t border-gray-200 pt-4 text-xs leading-5 text-gray-700 dark:border-white/10 dark:text-gray-300">
               Company sign-in is not connected yet. This screen is ready for
