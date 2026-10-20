@@ -33,13 +33,13 @@ export default function Users() {
       setNotice(
         id
           ? "User and permissions updated."
-          : "User added. They can now sign in on this browser."
+          : "User added. They can now sign in with their company account."
       );
     }
     return result;
   }
-  function remove(account, removed) {
-    const result = setRemoved(account.id, removed);
+  async function remove(account, removed) {
+    const result = await setRemoved(account.id, removed);
     setError(result);
     if (!result)
       setNotice(
@@ -68,9 +68,8 @@ export default function Users() {
         </button>
       </div>
       <p className="rounded-xl bg-white p-4 text-xs leading-5 text-gray-700 dark:bg-navy-800 dark:text-gray-300">
-        Accounts and permissions apply in this browser only. These local access
-        checks are not server security and do not share accounts between
-        devices. Connect a backend before company-wide use.
+        Accounts and permissions are enforced by the server. Disabling an
+        account immediately blocks its sessions.
       </p>
       {(accountError || error) && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-300">

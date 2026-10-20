@@ -12,14 +12,16 @@ export default function UserForm({
   onCancel,
   readOnly = false,
 }) {
-  const {records:branchRecords}=useBranches();
+  const { records: branchRecords } = useBranches();
   const [draft, setDraft] = useState({
     name: account?.name || "",
     username: account?.username || "",
     password: "",
     branchId: account?.branchId || "",
     role: account?.role || "Employee",
-    permissions: account?.role === "Employee" ? rolePermissions("Employee") : account?.permissions || rolePermissions("Employee"),
+    permissions: account
+      ? rolePermissions(account.role)
+      : rolePermissions("Employee"),
   });
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -132,12 +134,35 @@ export default function UserForm({
               </p>
             </div>
           </div>
-          {draft.role==='Branch Manager'&&<label className="block text-sm font-medium">Designated branch<select className={field} value={draft.branchId} onChange={update('branchId')}><option value="">Not assigned</option>{branchRecords.filter(b=>!b.removed).map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select><span className="mt-2 block text-xs">Only staff assigned to this branch appear in the manager's timetable.</span></label>}
+          {draft.role !== "Admin" && (
+            <label className="block text-sm font-medium">
+              Assigned branch
+              <select
+                className={field}
+                value={draft.branchId}
+                onChange={update("branchId")}
+              >
+                <option value="">Not assigned</option>
+                {branchRecords
+                  .filter((b) => !b.removed)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+              </select>
+              <span className="mt-2 block text-xs">
+                Access is limited to this branch. A branch assignment is
+                required.
+              </span>
+            </label>
+          )}
           <div>
             <h3 className="font-bold">Page permissions</h3>
             <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
               View opens the page. Manage allows adding or updating records.
-              Admins have full access; only admins can manage users. Employees can only view and submit weekly stock checks.
+              Admins have full access; only admins can manage users. Employees
+              can only view and submit weekly stock checks.
             </p>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full min-w-[400px] text-sm">
@@ -165,7 +190,10 @@ export default function UserForm({
                           aria-label={`View ${page.label}`}
                           checked={draft.permissions[page.key].view}
                           disabled={
-                            draft.role === "Admin" || draft.role === "Employee" || page.key === "users"
+                            draft.role === "Admin" ||
+                            draft.role === "Employee" ||
+                            draft.role === "Branch Manager" ||
+                            page.key === "users"
                           }
                           onChange={(event) =>
                             grant(page.key, "view", event.target.checked)
@@ -179,7 +207,9 @@ export default function UserForm({
                             aria-label={`Manage ${page.label}`}
                             checked={draft.permissions[page.key].manage}
                             disabled={
-                              draft.role === "Admin" || draft.role === "Employee" || page.key === "users"
+                              draft.role === "Admin" ||
+                              draft.role === "Employee" ||
+                              page.key === "users"
                             }
                             onChange={(event) =>
                               grant(page.key, "manage", event.target.checked)

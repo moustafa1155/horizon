@@ -32,7 +32,10 @@
     "build": "next build",
     "preview": "next start -H 0.0.0.0",
     "pretty": "prettier --write \"./**/*.{js,jsx,json}\"",
-    "db:setup-employees": "node scripts/setup-employees.cjs"
+    "db:setup-employees": "node scripts/setup-employees.cjs",
+    "test": "node --test tests/*.test.mjs",
+    "auth:create-admin": "node scripts/create-admin.cjs",
+    "test:auth-integration": "node scripts/test-auth-integration.cjs"
   },
   "browserslist": {
     "production": [

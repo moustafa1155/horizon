@@ -1,3 +1,5 @@
+import useShifts from "../../../hooks/useShifts";
+import {scheduleForWeek} from "../staffTimetables/timetableHelpers.mjs";
 import {hostedPreview} from "lib/previewMode";
 import { useMemo, useState } from "react";
 import Card from "components/card";
@@ -19,11 +21,13 @@ const inputClass =
   "w-full rounded-xl border border-gray-200 bg-lightPrimary px-3 py-3 text-sm text-navy-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-navy-900 dark:text-white";
 
 export default function Employees() {
-  const { records: employees, error: employeeError, save } = useEmployees();
+  const { records: employeeRecords, error: employeeError, save } = useEmployees();
   const { can, isPreview, user } = useAuth();
   const [adding, setAdding] = useState(false);
   const [editingEmployee,setEditingEmployee]=useState(null);
   const { records: branchRecords, branchError } = useBranches();
+  const shifts=useShifts();
+  const employees=employeeRecords.filter(e=>user?.role!=='Branch Manager'||user?.managerPreview||(!!user?.branchId&&e.branchId===user.branchId)).map(e=>({...e,branch:branchRecords.find(b=>b.id===e.branchId)?.name||e.branch||''}));
   const branches = Array.from(
     new Set([
       ...branchRecords
@@ -63,6 +67,8 @@ export default function Employees() {
   }
   return (
     <div className="mt-4 space-y-7">
+      {user?.role==='Branch Manager'&&!user?.managerPreview&&!user?.branchId&&<p className="rounded-xl bg-orange-50 p-4 text-sm text-orange-800">Ask an admin to assign your branch in Users & Permissions.</p>}
+      {shifts.error&&<p role="alert" className="text-red-600">{shifts.error}</p>}
       {employeeError && (
         <p role="alert" className="text-red-600">
           {employeeError}
@@ -256,7 +262,7 @@ export default function Employees() {
               {can('employees','manage')&&<button type="button" onClick={()=>{setEditingEmployee(selected);setAdding(true)}} className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white">Edit staff details</button>}
               <EmployeeDetails employee={selected} manager={manager} />
               <WeeklyTimetable
-                employee={selected}
+                employee={{...selected,schedule:scheduleForWeek(shifts.records,selected.id,week.getFullYear()+'-'+String(week.getMonth()+1).padStart(2,'0')+'-'+String(week.getDate()).padStart(2,'0'))}}
                 week={week}
                 onWeekSelect={setWeek}
                 onWeekChange={(days) =>

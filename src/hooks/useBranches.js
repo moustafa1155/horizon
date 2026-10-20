@@ -15,6 +15,9 @@ function readBranches() {
 
 export default function useBranches() {
   const [state, setState] = useState(readBranches);
+  const [databaseBranches,setDatabaseBranches]=useState([]);
+  const [databaseError,setDatabaseError]=useState("");
+  useEffect(()=>{let active=true;fetch("/api/branches",{cache:"no-store"}).then(async response=>{const data=await response.json();if(!response.ok)throw Error(data.error);loadBranches({getItem:()=>JSON.stringify(data.branches)});if(active)setDatabaseBranches(data.branches);}).catch(error=>{if(active)setDatabaseError(error.message||"Database branches could not be loaded.")});return()=>{active=false};},[]);
   useEffect(() => {
     const refresh = () => setState(readBranches());
     window.addEventListener("storage", refresh);
@@ -40,5 +43,7 @@ export default function useBranches() {
     window.dispatchEvent(new Event("horizon:branches-updated"));
     return "";
   }
-  return { ...state, saveBranches };
+  const combined=new Map(databaseBranches.map(b=>[b.name.toLowerCase(),b]));
+  for(const b of state.records)combined.set(b.name.toLowerCase(),b);
+  return { ...state, records:[...combined.values()], branchError:state.branchError||databaseError, saveBranches };
 }

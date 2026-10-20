@@ -1,1 +1,4 @@
-export { default } from "../../ClientShell";
+import ProtectedPage from "../ProtectedPage";
+export default function Page() {
+  return <ProtectedPage page="branches" />;
+}

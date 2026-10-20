@@ -11,6 +11,7 @@ const Sidebar = ({ open, onClose, collapsed = false, onToggle }) => {
   const { user, signOut } = useAuth();
   return (
     <div
+      role="navigation" aria-label="Sidebar" tabIndex={0}
       className={`${
         collapsed ? "w-[290px] xl:w-[80px]" : "w-[290px]"
       } linear fixed top-0 !z-50 flex h-screen h-[100dvh] flex-col overflow-y-auto overflow-x-hidden overscroll-contain [&>*]:shrink-0 bg-white pb-10 shadow-2xl shadow-white/5 transition-all duration-300 dark:!bg-navy-800 dark:text-white md:!z-50 lg:!z-50 xl:!z-0 ${
@@ -26,12 +27,12 @@ const Sidebar = ({ open, onClose, collapsed = false, onToggle }) => {
       >
         {collapsed ? <FiChevronRight /> : <FiChevronLeft />}
       </button>
-      <span
+      <button type="button" aria-label="Close sidebar"
         className="absolute right-4 top-4 block cursor-pointer xl:hidden"
         onClick={onClose}
       >
         <HiX />
-      </span>
+      </button>
 
       <div className={`mt-14 flex items-center justify-center ${collapsed ? "mx-2 xl:mx-1" : "mx-5"}`}>
         <div className={`w-full rounded-xl bg-white ${collapsed ? "p-2 xl:p-1" : "p-2"}`}>

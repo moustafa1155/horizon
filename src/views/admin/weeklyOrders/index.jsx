@@ -22,9 +22,10 @@ function initialState() {
 }
 
 export default function WeeklyOrders() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const canManage = can("weekly-orders", "manage");
-  const { records: branchRecords, branchError } = useBranches();
+  const { records: allBranches, branchError } = useBranches();
+  const branchRecords=allBranches.filter(b=>user?.role!=="Branch Manager"||user?.managerPreview||b.id===user?.branchId);
   const branches = branchRecords
     .filter((record) => !record.removed)
     .map((record) => record.name);
@@ -34,9 +35,10 @@ export default function WeeklyOrders() {
   const [week, setWeek] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [notice, setNotice] = useState("");
+  const allowedBranchNames=new Set(branchRecords.map(b=>b.name));
   const filtered = state.orders.filter(
     (order) =>
-      (branch === "all" || order.branch === branch) &&
+      (user?.role!=="Branch Manager"||user?.managerPreview||allowedBranchNames.has(order.branch)) && (branch === "all" || order.branch === branch) &&
       (!week || order.week === week)
   );
   const selected = filtered.find((order) => order.id === selectedId);

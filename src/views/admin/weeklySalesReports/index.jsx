@@ -1,3 +1,4 @@
+import useImportedSales,{mergeSales} from "../../../hooks/useImportedSales";
 import WeekSelector from "components/weekSelector";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useState } from "react";
@@ -31,8 +32,10 @@ function initialState() {
 
 export default function WeeklySalesReports() {
   const { can, user } = useAuth();
+  const imported=useImportedSales(user?.role==='Admin');
   const canManage = can("weekly-sales-reports", "manage");
-  const { records: branchRecords, branchError } = useBranches();
+  const { records: allBranches, branchError } = useBranches();
+  const branchRecords=allBranches.filter(b=>user?.role!=="Branch Manager"||user?.managerPreview||b.id===user?.branchId);
   const branches = branchRecords
     .filter((record) => !record.removed)
     .map((record) => record.name);
@@ -42,7 +45,8 @@ export default function WeeklySalesReports() {
   const [week, setWeek] = useState(currentWeek);
   const [selectedId, setSelectedId] = useState(null);
   const [notice, setNotice] = useState("");
-  const filtered = state.reports.filter(
+  const allReports=mergeSales(state.reports,imported.reports);
+  const filtered = allReports.filter(
     (report) =>
       (branch === "all" || report.branch === branch) &&
       (!week || report.week === week)
@@ -57,7 +61,7 @@ export default function WeeklySalesReports() {
     const error = validateReport(
       draft,
       eligibleBranchNames(branchRecords, draft.week),
-      state.reports
+      allReports
     );
     if (error) return error;
     const report = {
@@ -123,6 +127,7 @@ export default function WeeklySalesReports() {
           {state.error}
         </p>
       )}
+      {imported.error && <p role="alert" className="text-red-600">{imported.error}</p>}
       {notice && (
         <p
           role="status"

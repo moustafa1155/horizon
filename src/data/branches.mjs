@@ -46,6 +46,7 @@ export function validateBranch(draft, records, editingId = null) {
 
 export function branchStatus(branch, today = localDate()) {
   if (branch.removed) return "Removed";
+  if(!branch.type)return "Not configured";
 
   if (branch.startDate && today < branch.startDate) return "Upcoming";
   if (branch.endDate && today > branch.endDate) return "Ended";
@@ -60,7 +61,7 @@ export function eligibleBranchNames(records, week) {
   return records
     .filter(
       (record) =>
-        !record.removed &&
+        !!record.type && !record.removed &&
         (!record.startDate || record.startDate <= weekEnd) &&
         (!record.endDate || record.endDate >= week)
     )
@@ -79,7 +80,7 @@ export function loadBranches(storage) {
       !record.id ||
       typeof record.name !== "string" ||
       !record.name.trim() ||
-      !["permanent", "temporary"].includes(record.type) ||
+      !["", "permanent", "temporary"].includes(record.type) ||
       typeof record.removed !== "boolean" ||
       (record.startDate && !validDate(record.startDate)) ||
       (record.endDate && !validDate(record.endDate)) ||

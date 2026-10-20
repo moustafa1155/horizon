@@ -132,8 +132,7 @@ export default function Branches() {
       )}
       {isPreview && (
         <p className="text-sm text-brand-500">
-          Preview mode: open Add branch to inspect the form. Sign in with an
-          admin account to save or remove branches.
+          Preview branch changes are saved in this browser only.
         </p>
       )}
       {!canManage && !isPreview && (
@@ -203,11 +202,12 @@ export default function Branches() {
                 </label>
                 <select
                   id="branch-type"
-                  disabled={!!editingId}
+                  disabled={!!editingId && !!records.find(record=>record.id===editingId)?.type}
                   value={draft.type}
                   onChange={update("type")}
                   className={field}
                 >
+                  <option value="">Select branch type</option>
                   <option value="permanent">Permanent</option>
                   <option value="temporary">Temporary</option>
                 </select>
@@ -352,12 +352,12 @@ export default function Branches() {
                     <th scope="row" className="px-2 py-4 text-start">
                       {record.name}
                     </th>
-                    <td className="px-2 py-4 capitalize">{record.type}</td>
+                    <td className="px-2 py-4 capitalize">{record.type || "Not specified"}</td>
                     <td className="px-2 py-4">
                       {formatDate(record.startDate)}
                     </td>
                     <td className="px-2 py-4">
-                      {record.endDate ? formatDate(record.endDate) : "Ongoing"}
+                      {record.endDate ? formatDate(record.endDate) : record.type ? "Ongoing" : "—"}
                     </td>
                     <td className="px-2 py-4">{branchStatus(record)}</td>
                     <td className="px-2 py-4">

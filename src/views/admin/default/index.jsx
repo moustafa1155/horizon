@@ -1,3 +1,4 @@
+import useImportedSales,{mergeSales} from "../../../hooks/useImportedSales";
 import WeekSelector from "components/weekSelector";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useEffect, useMemo, useState } from "react";
@@ -102,6 +103,7 @@ function Status({ count, expected = true }) {
 
 export default function Dashboard() {
   const { can, user } = useAuth();
+  const imported=useImportedSales(user?.role==='Admin');
   const { records: employeeRecords, error: employeeError } = useEmployees();
   const employees = can("employees") ? employeeRecords : [];
   const { records: branchRecords, branchError } = useBranches();
@@ -125,14 +127,14 @@ export default function Dashboard() {
         ...data,
         orders: can("weekly-orders") ? data.orders : null,
         checks: can("weekly-stock-checks") ? data.checks : null,
-        reports: can("weekly-sales-reports") ? data.reports : null,
+        reports: can("weekly-sales-reports") ? (data.reports===null?null:mergeSales(data.reports,imported.reports)) : null,
         employees,
         branches,
         branchRecords,
         branch,
         week,
       }),
-    [data, user, branchRecords, branch, week, employeeRecords]
+    [data, user, branchRecords, branch, week, employeeRecords, imported.reports]
   );
   const salesValue = (amount) =>
     amount === null
@@ -158,6 +160,7 @@ export default function Dashboard() {
   ];
   return (
     <div className="mt-3 space-y-5 text-navy-700 dark:text-white">
+      {imported.error && <p role="alert" className="text-red-600">{imported.error}</p>}
       {branchError && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-300">
           {branchError}
@@ -172,7 +175,7 @@ export default function Dashboard() {
         </div>
         <button
           type="button"
-          onClick={() => setData(readDashboard(can))}
+          onClick={() => {setData(readDashboard(can)); imported.refresh();}}
           className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-medium dark:bg-navy-800"
         >
           <FiRefreshCw />
