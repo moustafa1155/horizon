@@ -1,22 +1,8 @@
 import { useState } from "react";
 import { loginErrorMessage } from "../../data/loginErrors.mjs";
 import { useNavigate } from "lib/navigation";
-import {
-  FiEye,
-  FiEyeOff,
-  FiUsers,
-  FiShoppingBag,
-  FiClipboard,
-  FiBarChart2,
-  FiLock,
-} from "react-icons/fi";
+import { FiEye, FiEyeOff, FiLock } from "react-icons/fi";
 
-const features = [
-  [FiUsers, "Your team", "Employee details and weekly timetables."],
-  [FiShoppingBag, "Weekly orders", "Product orders for every branch."],
-  [FiClipboard, "Stock checks", "Weekly stock counts and branch activity."],
-  [FiBarChart2, "Sales reports", "Card, cash and weekly sales totals."],
-];
 const inputClass =
   "mt-2 block w-full rounded-xl border border-gray-200 bg-lightPrimary px-4 py-3.5 text-sm text-navy-700 outline-none placeholder:text-gray-700 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:opacity-60 dark:border-white/10 dark:bg-navy-900 dark:text-white dark:placeholder:text-gray-400";
 
@@ -64,7 +50,7 @@ export default function Login({
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-lightPrimary p-4 text-navy-700 dark:bg-navy-900 dark:text-white md:p-8">
-      <div className="grid w-full max-w-[1120px] overflow-hidden rounded-[28px] bg-white shadow-xl shadow-shadow-500 dark:bg-navy-800 lg:grid-cols-2">
+      <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] bg-white shadow-xl shadow-shadow-500 dark:bg-navy-800">
         <section
           aria-labelledby="login-heading"
           className="px-6 py-10 sm:px-10 lg:px-14 lg:py-14"
@@ -198,44 +184,6 @@ export default function Login({
             </p>
           )}
         </section>
-        <aside
-          className="flex flex-col justify-center bg-gradient-to-br from-brand-600 to-brand-800 px-6 py-10 text-white sm:px-10 lg:px-14 lg:py-14"
-          aria-label="Company workspace features"
-        >
-          <span className="mb-6 w-fit rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium">
-            One workspace for your company
-          </span>
-          <h2 className="max-w-sm text-3xl font-bold leading-tight md:text-4xl">
-            Keep every branch
-            <br />
-            working together.
-          </h2>
-          <p className="mt-4 max-w-sm text-sm leading-6 text-white/80">
-            Bring your people, stock, orders and sales into one clear weekly
-            overview.
-          </p>
-          <ul className="mt-10 space-y-6">
-            {features.map(([Icon, title, description]) => (
-              <li key={title} className="flex items-start gap-4">
-                <span
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-lg"
-                  aria-hidden="true"
-                >
-                  <Icon />
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold">{title}</h3>
-                  <p className="mt-1 text-xs leading-5 text-white/80">
-                    {description}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-12 text-xs text-white/70">
-            For admins, branch managers and employees.
-          </p>
-        </aside>
       </div>
     </main>
   );
