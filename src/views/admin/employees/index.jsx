@@ -9,13 +9,8 @@ import { useAuth } from "../../../contexts/AuthContext";
 import EmployeeForm from "./EmployeeForm";
 import RemoveEmployeeDialog from "./RemoveEmployeeDialog";
 import useBranches from "../../../hooks/useBranches";
-import {
-  filterEmployees,
-  getWeekStart,
-  addDays,
-  initials,
-} from "./helpers.mjs";
-import EmployeeDetails from "./EmployeeDetails";
+import { filterEmployees, getWeekStart, addDays } from "./helpers.mjs";
+import EmployeeDirectory from "./EmployeeDirectory";
 import WeeklyTimetable from "./WeeklyTimetable";
 
 const inputClass =
@@ -68,13 +63,6 @@ export default function Employees() {
   const selected =
     visibleEmployees.find((employee) => employee.id === selectedId) ||
     visibleEmployees[0];
-  const manager =
-    selected &&
-    employees.find(
-      (employee) =>
-        employee.branch === selected.branch &&
-        employee.role === "Branch manager"
-    );
   const managers = visibleEmployees.filter(
     (employee) => employee.role === "Branch manager"
   ).length;
@@ -279,49 +267,25 @@ export default function Employees() {
             Employee directory
           </h2>
           <p className="mb-4 text-xs text-gray-700 dark:text-gray-300">
-            Select an employee to view their schedule.
+            Select an employee name to view their weekly timetable.
           </p>
           {visibleEmployees.length ? (
-            <ul className="grid max-h-[480px] gap-3 overflow-y-auto md:grid-cols-2 2xl:grid-cols-3">
-              {visibleEmployees.map((employee) => (
-                <li key={employee.id}>
-                  <button
-                    type="button"
-                    aria-pressed={selected?.id === employee.id}
-                    onClick={() => setSelectedId(employee.id)}
-                    className={`flex w-full items-center gap-3 rounded-xl border p-3 text-start transition focus-visible:outline-brand-500 ${
-                      selected?.id === employee.id
-                        ? "border-brand-500 bg-brand-50 dark:bg-navy-700"
-                        : "border-transparent hover:bg-lightPrimary dark:hover:bg-navy-700"
-                    }`}
-                  >
-                    <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-lightPrimary text-sm font-bold text-brand-500 dark:bg-navy-900 dark:text-brand-200"
-                      aria-hidden="true"
-                    >
-                      {initials(employee.name)}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-bold text-navy-700 dark:text-white">
-                        {employee.name}
-                      </span>
-                      <span className="block text-xs text-gray-700 dark:text-gray-300">
-                        {employee.branch}
-                      </span>
-                      <span
-                        className={`mt-1 inline-block rounded px-2 py-0.5 text-xs ${
-                          employee.role === "Branch manager"
-                            ? "bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-100"
-                            : "bg-gray-100 text-gray-700 dark:bg-navy-900 dark:text-gray-300"
-                        }`}
-                      >
-                        {employee.role}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <EmployeeDirectory
+              employees={visibleEmployees}
+              selectedId={selected?.id}
+              onSelect={setSelectedId}
+              canEdit={can("employees", "manage")}
+              canRemove={user?.role === "Admin" && can("employees", "manage")}
+              onEdit={(employee) => {
+                setEditingEmployee(employee);
+                setAdding(true);
+                setNotice("");
+              }}
+              onRemove={(employee) => {
+                setNotice("");
+                setRemovingEmployee(employee);
+              }}
+            />
           ) : (
             <div className="py-8 text-center">
               <FiUsers className="mx-auto mb-3 text-3xl text-gray-600" />
@@ -348,33 +312,6 @@ export default function Employees() {
         <div className="space-y-7" aria-live="polite">
           {selected ? (
             <>
-              <div className="flex flex-wrap gap-3">
-                {can("employees", "manage") && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditingEmployee(selected);
-                      setAdding(true);
-                    }}
-                    className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white"
-                  >
-                    Edit staff details
-                  </button>
-                )}
-                {user?.role === "Admin" && can("employees", "manage") && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNotice("");
-                      setRemovingEmployee(selected);
-                    }}
-                    className="rounded-xl border border-red-200 px-5 py-3 font-bold text-red-600 hover:bg-red-50 dark:border-red-400/30 dark:text-red-300"
-                  >
-                    Remove employee
-                  </button>
-                )}
-              </div>
-              <EmployeeDetails employee={selected} manager={manager} />
               <WeeklyTimetable
                 employee={{
                   ...selected,
