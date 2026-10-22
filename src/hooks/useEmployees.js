@@ -53,5 +53,27 @@ export default function useEmployees() {
       return "The employee could not be saved. Please try again.";
     }
   }
-  return { ...state, save, refresh };
+
+  async function remove(id) {
+    try {
+      const response = await fetch("/api/employees", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, confirmed: true }),
+      });
+      const data = await response.json();
+      if (!response.ok)
+        return data.error || "The employee could not be removed.";
+      setState((current) => ({
+        ...current,
+        records: current.records.filter((employee) => employee.id !== id),
+      }));
+      await refresh();
+      window.dispatchEvent(new Event("horizon:employees-updated"));
+      return "";
+    } catch {
+      return "The employee could not be removed. Please try again.";
+    }
+  }
+  return { ...state, save, remove, refresh };
 }

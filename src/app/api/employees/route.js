@@ -17,16 +17,19 @@ export async function GET(request) {
   try {
     const collection = await employeeCollection();
     const records = await collection
-      .find(branchFilter(access.user), {
-        projection: {
-          fullName: 1,
-          phoneNumber: 1,
-          nationalInsuranceNumber: 1,
-          email: 1,
-          isSample: 1,
-          branchId: 1,
-        },
-      })
+      .find(
+        { ...branchFilter(access.user), removed: { $ne: true } },
+        {
+          projection: {
+            fullName: 1,
+            phoneNumber: 1,
+            nationalInsuranceNumber: 1,
+            email: 1,
+            isSample: 1,
+            branchId: 1,
+          },
+        }
+      )
       .sort({ fullName: 1 })
       .limit(1000)
       .toArray();
@@ -117,7 +120,11 @@ async function saveEmployee(request, editing) {
     const now = new Date();
     if (editing) {
       const result = await collection.updateOne(
-        { _id: new ObjectId(body.id), ...branchFilter(access.user) },
+        {
+          _id: new ObjectId(body.id),
+          ...branchFilter(access.user),
+          removed: { $ne: true },
+        },
         { $set: { ...record, updatedAt: now } }
       );
       if (!result.matchedCount)
@@ -142,6 +149,53 @@ async function saveEmployee(request, editing) {
             : "The employee could not be saved. Please try again.",
       },
       error.code === 11000 ? 409 : 503
+    );
+  }
+}
+
+export async function DELETE(request) {
+  const access = await authorize(request, "employees", "manage");
+  if (access.response) return access.response;
+  if (access.user.role !== "Admin")
+    return json({ error: "Only admins can remove employees." }, 403);
+  let body;
+  try {
+    body = await readSmallJson(request);
+  } catch {
+    return json({ error: "Invalid removal request." }, 400);
+  }
+  if (typeof body?.id !== "string" || !/^[a-f0-9]{24}$/i.test(body.id))
+    return json({ error: "Invalid employee identifier." }, 400);
+  if (body.confirmed !== true)
+    return json(
+      { error: "Confirm that you want to remove this employee." },
+      400
+    );
+  try {
+    const now = new Date();
+    const result = await (
+      await employeeCollection()
+    ).updateOne(
+      { _id: new ObjectId(body.id), removed: { $ne: true } },
+      {
+        $set: {
+          removed: true,
+          removedAt: now,
+          removedBy: access.user.id,
+          updatedAt: now,
+        },
+      }
+    );
+    if (!result.matchedCount)
+      return json(
+        { error: "Employee no longer exists or has already been removed." },
+        404
+      );
+    return json({ ok: true });
+  } catch {
+    return json(
+      { error: "The employee could not be removed. Please try again." },
+      503
     );
   }
 }

@@ -1,12 +1,13 @@
 import useShifts from "../../../hooks/useShifts";
-import {scheduleForWeek} from "../staffTimetables/timetableHelpers.mjs";
-import {hostedPreview} from "lib/previewMode";
+import { scheduleForWeek } from "../staffTimetables/timetableHelpers.mjs";
+import { hostedPreview } from "lib/previewMode";
 import { useMemo, useState } from "react";
 import Card from "components/card";
 import { FiSearch, FiUsers, FiMapPin } from "react-icons/fi";
 import useEmployees from "../../../hooks/useEmployees";
 import { useAuth } from "../../../contexts/AuthContext";
 import EmployeeForm from "./EmployeeForm";
+import RemoveEmployeeDialog from "./RemoveEmployeeDialog";
 import useBranches from "../../../hooks/useBranches";
 import {
   filterEmployees,
@@ -21,13 +22,31 @@ const inputClass =
   "w-full rounded-xl border border-gray-200 bg-lightPrimary px-3 py-3 text-sm text-navy-700 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-navy-900 dark:text-white";
 
 export default function Employees() {
-  const { records: employeeRecords, error: employeeError, save } = useEmployees();
+  const {
+    records: employeeRecords,
+    error: employeeError,
+    save,
+    remove,
+  } = useEmployees();
   const { can, isPreview, user } = useAuth();
   const [adding, setAdding] = useState(false);
-  const [editingEmployee,setEditingEmployee]=useState(null);
+  const [removingEmployee, setRemovingEmployee] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [editingEmployee, setEditingEmployee] = useState(null);
   const { records: branchRecords, branchError } = useBranches();
-  const shifts=useShifts();
-  const employees=employeeRecords.filter(e=>user?.role!=='Branch Manager'||user?.managerPreview||(!!user?.branchId&&e.branchId===user.branchId)).map(e=>({...e,branch:branchRecords.find(b=>b.id===e.branchId)?.name||e.branch||''}));
+  const shifts = useShifts();
+  const employees = employeeRecords
+    .filter(
+      (e) =>
+        user?.role !== "Branch Manager" ||
+        user?.managerPreview ||
+        (!!user?.branchId && e.branchId === user.branchId)
+    )
+    .map((e) => ({
+      ...e,
+      branch:
+        branchRecords.find((b) => b.id === e.branchId)?.name || e.branch || "",
+    }));
   const branches = Array.from(
     new Set([
       ...branchRecords
@@ -67,8 +86,47 @@ export default function Employees() {
   }
   return (
     <div className="mt-4 space-y-7">
-      {user?.role==='Branch Manager'&&!user?.managerPreview&&!user?.branchId&&<p className="rounded-xl bg-orange-50 p-4 text-sm text-orange-800">Ask an admin to assign your branch in Users & Permissions.</p>}
-      {shifts.error&&<p role="alert" className="text-red-600">{shifts.error}</p>}
+      {notice && (
+        <p
+          role="status"
+          className="rounded-xl bg-green-50 p-4 text-sm text-green-800"
+        >
+          {notice}
+        </p>
+      )}
+      {removingEmployee && (
+        <RemoveEmployeeDialog
+          employee={removingEmployee}
+          onCancel={() => setRemovingEmployee(null)}
+          onRemove={async (id) => {
+            const error = await remove(id);
+            if (!error) {
+              setNotice(
+                `${removingEmployee.name} removed from the employee directory.`
+              );
+              setRemovingEmployee(null);
+              setSelectedId(null);
+              if (editingEmployee?.id === id) {
+                setAdding(false);
+                setEditingEmployee(null);
+              }
+            }
+            return error;
+          }}
+        />
+      )}
+      {user?.role === "Branch Manager" &&
+        !user?.managerPreview &&
+        !user?.branchId && (
+          <p className="rounded-xl bg-orange-50 p-4 text-sm text-orange-800">
+            Ask an admin to assign your branch in Users & Permissions.
+          </p>
+        )}
+      {shifts.error && (
+        <p role="alert" className="text-red-600">
+          {shifts.error}
+        </p>
+      )}
       {employeeError && (
         <p role="alert" className="text-red-600">
           {employeeError}
@@ -84,19 +142,50 @@ export default function Employees() {
           View employee contact details and add new employees.
         </p>
       </div>
-      {(user?.role === "Admin" && (can("employees", "manage") || isPreview)) && (
+      {user?.role === "Admin" && (can("employees", "manage") || isPreview) && (
         <button
           type="button"
-          onClick={() => {setEditingEmployee(null);setAdding(true)}}
+          onClick={() => {
+            setEditingEmployee(null);
+            setAdding(true);
+          }}
           className="rounded-xl bg-brand-500 px-6 py-3 font-medium text-white"
         >
           Add employee
         </button>
       )}
       <p className="text-sm text-gray-700 dark:text-gray-300">
-        {hostedPreview ? "Preview employees are saved in this browser only." : "Employee records are loaded from the database."}
+        {hostedPreview
+          ? "Preview employees are saved in this browser only."
+          : "Employee records are loaded from the database."}
       </p>
-      {adding&&<EmployeeForm allowAssignment={user?.role === "Admin"} employee={editingEmployee} readOnly={!can("employees", "manage") && !(isPreview && user?.role === "Admin")} onCancel={()=>{setAdding(false);setEditingEmployee(null)}} onSave={async draft=>{if(!can('employees','manage') && !(isPreview && user?.role === "Admin"))return 'You do not have permission to add employees.';const error=await save(draft,editingEmployee?.id);if(!error){resetFilters();setAdding(false);}return error;}}/>}
+      {adding && (
+        <EmployeeForm
+          allowAssignment={user?.role === "Admin"}
+          employee={editingEmployee}
+          readOnly={
+            !can("employees", "manage") &&
+            !(isPreview && user?.role === "Admin")
+          }
+          onCancel={() => {
+            setAdding(false);
+            setEditingEmployee(null);
+          }}
+          onSave={async (draft) => {
+            if (
+              !can("employees", "manage") &&
+              !(isPreview && user?.role === "Admin")
+            )
+              return "You do not have permission to add employees.";
+            const error = await save(draft, editingEmployee?.id);
+            if (!error) {
+              resetFilters();
+              setAdding(false);
+            }
+            return error;
+          }}
+        />
+      )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {[
           ["Employees", visibleEmployees.length, FiUsers],
@@ -259,10 +348,46 @@ export default function Employees() {
         <div className="space-y-7" aria-live="polite">
           {selected ? (
             <>
-              {can('employees','manage')&&<button type="button" onClick={()=>{setEditingEmployee(selected);setAdding(true)}} className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white">Edit staff details</button>}
+              <div className="flex flex-wrap gap-3">
+                {can("employees", "manage") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingEmployee(selected);
+                      setAdding(true);
+                    }}
+                    className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white"
+                  >
+                    Edit staff details
+                  </button>
+                )}
+                {user?.role === "Admin" && can("employees", "manage") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotice("");
+                      setRemovingEmployee(selected);
+                    }}
+                    className="rounded-xl border border-red-200 px-5 py-3 font-bold text-red-600 hover:bg-red-50 dark:border-red-400/30 dark:text-red-300"
+                  >
+                    Remove employee
+                  </button>
+                )}
+              </div>
               <EmployeeDetails employee={selected} manager={manager} />
               <WeeklyTimetable
-                employee={{...selected,schedule:scheduleForWeek(shifts.records,selected.id,week.getFullYear()+'-'+String(week.getMonth()+1).padStart(2,'0')+'-'+String(week.getDate()).padStart(2,'0'))}}
+                employee={{
+                  ...selected,
+                  schedule: scheduleForWeek(
+                    shifts.records,
+                    selected.id,
+                    week.getFullYear() +
+                      "-" +
+                      String(week.getMonth() + 1).padStart(2, "0") +
+                      "-" +
+                      String(week.getDate()).padStart(2, "0")
+                  ),
+                }}
                 week={week}
                 onWeekSelect={setWeek}
                 onWeekChange={(days) =>

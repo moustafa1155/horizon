@@ -86,7 +86,12 @@ async function main() {
         "10003",
       ],
       {
-        env: { ...process.env, MONGODB_DATABASE: database, APP_ORIGIN: base + '/', RENDER_EXTERNAL_URL: 'https://auth-fixture.onrender.com' },
+        env: {
+          ...process.env,
+          MONGODB_DATABASE: database,
+          APP_ORIGIN: base + "/",
+          RENDER_EXTERNAL_URL: "https://auth-fixture.onrender.com",
+        },
         stdio: "ignore",
         windowsHide: true,
       }
@@ -389,6 +394,125 @@ async function main() {
       ).status,
       401,
       "disabled account cannot log in"
+    );
+
+    const staffId = inserted.insertedIds[0].toString();
+    check(
+      (
+        await request("/api/employees", {
+          method: "DELETE",
+          body: { id: staffId, confirmed: true },
+        })
+      ).status,
+      401,
+      "anonymous employee removal denied"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "DELETE",
+          origin: "https://evil.example",
+          body: { id: staffId, confirmed: true },
+        })
+      ).status,
+      403,
+      "cross-site employee removal denied"
+    );
+    const managerAgain = await login("auth.manager");
+    check(
+      (
+        await request("/api/employees", {
+          cookie: managerAgain,
+          method: "DELETE",
+          body: { id: staffId, confirmed: true },
+        })
+      ).status,
+      403,
+      "manager employee removal denied"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "DELETE",
+          body: { id: "invalid", confirmed: true },
+        })
+      ).status,
+      400,
+      "invalid employee removal identifier denied"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "DELETE",
+          body: { id: staffId },
+        })
+      ).status,
+      400,
+      "employee removal requires confirmation"
+    );
+    check(
+      (await request("/api/employees", { cookie: admin })).data.employees
+        .length,
+      2,
+      "unconfirmed removal preserves employees"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "DELETE",
+          body: { id: staffId, confirmed: true },
+        })
+      ).status,
+      200,
+      "admin removes confirmed employee"
+    );
+    check(
+      (
+        await db
+          .collection("employees")
+          .findOne({ _id: inserted.insertedIds[0] })
+      ).removed,
+      true,
+      "employee is archived rather than deleted"
+    );
+    check(
+      (await request("/api/employees", { cookie: admin })).data.employees.map(
+        (e) => e.fullName
+      ),
+      ["Auth fixture B"],
+      "removed employee hidden from directory"
+    );
+    check(
+      (await request("/api/employees", { cookie: managerAgain })).data.employees
+        .length,
+      0,
+      "removed employee hidden from manager timetable staff"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "PUT",
+          body: { ...employee, id: staffId },
+        })
+      ).status,
+      404,
+      "archived employee cannot be edited"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "DELETE",
+          body: { id: staffId, confirmed: true },
+        })
+      ).status,
+      404,
+      "duplicate removal rejected"
     );
     const expired = await db
       .collection("portal_sessions")
