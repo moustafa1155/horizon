@@ -53,18 +53,36 @@ export default function EmployeeDirectory({
                 }
               >
                 <th scope="row" className="min-w-[210px] px-4 py-4 font-normal">
-                  <button
-                    type="button"
-                    onClick={() => onSelect(employee.id)}
-                    aria-pressed={selectedId === employee.id}
-                    aria-label={"View timetable for " + employee.name}
-                    className="text-left font-bold text-brand-600 hover:underline focus-visible:outline-brand-500 dark:text-brand-200"
-                  >
-                    {employee.name}
-                  </button>
-                  <span className="mt-1 block break-all text-xs text-gray-700 dark:text-gray-300">
-                    {employee.id}
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 font-bold text-brand-700 dark:bg-navy-900 dark:text-brand-200">
+                      {employee.profilePhotoUrl ? (
+                        <img
+                          src={employee.profilePhotoUrl}
+                          alt={employee.name + " profile picture"}
+                          loading="lazy"
+                          width={44}
+                          height={44}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        employee.name?.trim().charAt(0).toUpperCase()
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => onSelect(employee.id)}
+                        aria-pressed={selectedId === employee.id}
+                        aria-label={"View timetable for " + employee.name}
+                        className="text-left font-bold text-brand-600 hover:underline focus-visible:outline-brand-500 dark:text-brand-200"
+                      >
+                        {employee.name}
+                      </button>
+                      <span className="mt-1 block break-all text-xs text-gray-700 dark:text-gray-300">
+                        {employee.id}
+                      </span>
+                    </div>
+                  </div>
                 </th>
                 <td className="whitespace-nowrap px-4 py-4">
                   {employee.phone ? (

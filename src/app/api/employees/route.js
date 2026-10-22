@@ -1,7 +1,11 @@
 import { readSmallJson } from "lib/requestSecurity.mjs";
 import { authorize } from "lib/serverAuth";
 import { branchFilter } from "lib/authCore.mjs";
-import { ObjectId } from "mongodb";
+import { ObjectId, Binary } from "mongodb";
+import {
+  prepareProfilePhoto,
+  EMPLOYEE_REQUEST_BYTES,
+} from "lib/profilePhotoServer.mjs";
 import { employeeCollection } from "lib/mongodb";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +14,19 @@ function json(data, status = 200) {
     status,
     headers: { "Cache-Control": "no-store" },
   });
+}
+function employeeSummary(record, id) {
+  const { profilePhoto, ...fields } = record;
+  return {
+    ...fields,
+    id,
+    profilePhotoUrl: profilePhoto?.updatedAt
+      ? "/api/employees/" +
+        id +
+        "/photo?v=" +
+        new Date(profilePhoto.updatedAt).getTime()
+      : null,
+  };
 }
 export async function GET(request) {
   const access = await authorize(request, "employees");
@@ -27,6 +44,7 @@ export async function GET(request) {
             email: 1,
             isSample: 1,
             branchId: 1,
+            "profilePhoto.updatedAt": 1,
           },
         }
       )
@@ -34,10 +52,9 @@ export async function GET(request) {
       .limit(1000)
       .toArray();
     return json({
-      employees: records.map(({ _id, ...record }) => ({
-        ...record,
-        id: _id.toString(),
-      })),
+      employees: records.map(({ _id, ...record }) =>
+        employeeSummary(record, _id.toString())
+      ),
     });
   } catch {
     return json(
@@ -60,7 +77,7 @@ async function saveEmployee(request, editing) {
       return json({ error: "Expected employee details as JSON." }, 400);
     let body;
     try {
-      body = await readSmallJson(request);
+      body = await readSmallJson(request, EMPLOYEE_REQUEST_BYTES);
     } catch {
       return json({ error: "Invalid employee details." }, 400);
     }
@@ -116,6 +133,15 @@ async function saveEmployee(request, editing) {
         });
       if (!branch) return json({ error: "Select an active branch." }, 400);
     }
+    const removePhoto = body.profilePhoto === null;
+    if (body.profilePhoto !== undefined && !removePhoto) {
+      try {
+        const photo = await prepareProfilePhoto(body.profilePhoto);
+        record.profilePhoto = { ...photo, data: new Binary(photo.data) };
+      } catch (error) {
+        return json({ error: error.message }, 400);
+      }
+    }
     const collection = await employeeCollection();
     const now = new Date();
     if (editing) {
@@ -125,11 +151,14 @@ async function saveEmployee(request, editing) {
           ...branchFilter(access.user),
           removed: { $ne: true },
         },
-        { $set: { ...record, updatedAt: now } }
+        {
+          $set: { ...record, updatedAt: now },
+          ...(removePhoto ? { $unset: { profilePhoto: "" } } : {}),
+        }
       );
       if (!result.matchedCount)
         return json({ error: "Employee no longer exists." }, 404);
-      return json({ employee: { ...record, id: body.id } });
+      return json({ employee: employeeSummary(record, body.id) });
     }
     const result = await collection.insertOne({
       ...record,
@@ -137,7 +166,7 @@ async function saveEmployee(request, editing) {
       updatedAt: now,
     });
     return json(
-      { employee: { ...record, id: result.insertedId.toString() } },
+      { employee: employeeSummary(record, result.insertedId.toString()) },
       201
     );
   } catch (error) {

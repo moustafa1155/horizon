@@ -199,6 +199,199 @@ async function main() {
       3,
       "admin can list accounts"
     );
+
+    const sharp = require("sharp");
+    const photoBytes = await sharp({
+      create: { width: 400, height: 300, channels: 3, background: "#668800" },
+    })
+      .png()
+      .toBuffer();
+    const profilePhoto =
+      "data:image/png;base64," + photoBytes.toString("base64");
+    const photoPath =
+      "/api/employees/" + inserted.insertedIds[0].toString() + "/photo";
+    check(
+      (await request(photoPath, { cookie: admin })).status,
+      404,
+      "missing profile photo returns not found"
+    );
+    for (const [record, id] of [
+      [employee, inserted.insertedIds[0]],
+      [other, inserted.insertedIds[1]],
+    ])
+      check(
+        (
+          await request("/api/employees", {
+            cookie: admin,
+            method: "PUT",
+            body: { ...record, id: id.toString(), profilePhoto },
+          })
+        ).status,
+        200,
+        "profile photo saved to employee"
+      );
+    const storedPhoto = (
+      await db.collection("employees").findOne({ _id: inserted.insertedIds[0] })
+    ).profilePhoto;
+    check(
+      storedPhoto.data._bsontype,
+      "Binary",
+      "profile picture stored as MongoDB binary"
+    );
+    check(
+      storedPhoto.contentType,
+      "image/webp",
+      "photo is normalized for storage"
+    );
+    const directory = (await request("/api/employees", { cookie: admin })).data
+      .employees;
+    check(
+      directory.every(
+        (row) =>
+          typeof row.profilePhotoUrl === "string" && !("profilePhoto" in row)
+      ),
+      true,
+      "directory returns protected URLs without image bytes"
+    );
+    const imageResponse = await fetch(base + photoPath, {
+      headers: { cookie: manager },
+    });
+    check(
+      imageResponse.status,
+      200,
+      "assigned manager can view staff profile picture"
+    );
+    check(
+      imageResponse.headers.get("content-type"),
+      "image/webp",
+      "photo has correct image content type"
+    );
+    check(
+      imageResponse.headers.get("cache-control"),
+      "private, no-store",
+      "profile photo is not publicly cached"
+    );
+    const imageMetadata = await sharp(
+      Buffer.from(await imageResponse.arrayBuffer())
+    ).metadata();
+    check(
+      [imageMetadata.width, imageMetadata.height],
+      [256, 256],
+      "stored profile photo is displayed at bounded dimensions"
+    );
+    check(
+      (await request(photoPath)).status,
+      401,
+      "anonymous profile photo access denied"
+    );
+    check(
+      (await request(photoPath, { cookie: employeeCookie })).status,
+      403,
+      "stock-only employee cannot view staff profile photos"
+    );
+    check(
+      (
+        await request(
+          "/api/employees/" + inserted.insertedIds[1].toString() + "/photo",
+          { cookie: manager }
+        )
+      ).status,
+      404,
+      "manager cannot view another branch profile picture"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "PUT",
+          body: {
+            ...employee,
+            id: inserted.insertedIds[0].toString(),
+            profilePhoto: "data:image/png;base64,YmFk",
+          },
+        })
+      ).status,
+      400,
+      "invalid photo upload rejected"
+    );
+    check(
+      (await request(photoPath, { cookie: admin })).status,
+      200,
+      "invalid upload preserves existing picture"
+    );
+    const addedPhoto = await request("/api/employees", {
+      cookie: admin,
+      method: "POST",
+      body: {
+        ...employee,
+        fullName: "Auth photo fixture",
+        nationalInsuranceNumber: "PHOTO-TEST",
+        email: "photo@example.invalid",
+        profilePhoto,
+      },
+    });
+    check(
+      addedPhoto.status,
+      201,
+      "new employee can be created with profile picture"
+    );
+    const addedPath =
+      "/api/employees/" + addedPhoto.data.employee.id + "/photo";
+    check(
+      (await request(addedPath, { cookie: admin })).status,
+      200,
+      "new employee photo survives database round trip"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "PUT",
+          body: {
+            ...employee,
+            id: addedPhoto.data.employee.id,
+            fullName: "Auth photo fixture",
+            nationalInsuranceNumber: "PHOTO-TEST",
+            email: "photo@example.invalid",
+          },
+        })
+      ).status,
+      200,
+      "editing without selecting photo preserves it"
+    );
+    check(
+      (await request(addedPath, { cookie: admin })).status,
+      200,
+      "unchanged photo remains available"
+    );
+    check(
+      (
+        await request("/api/employees", {
+          cookie: admin,
+          method: "PUT",
+          body: {
+            ...employee,
+            id: addedPhoto.data.employee.id,
+            fullName: "Auth photo fixture",
+            nationalInsuranceNumber: "PHOTO-TEST",
+            email: "photo@example.invalid",
+            profilePhoto: null,
+          },
+        })
+      ).status,
+      200,
+      "existing profile picture can be removed"
+    );
+    check(
+      (await request(addedPath, { cookie: admin })).status,
+      404,
+      "removed profile picture no longer served"
+    );
+    await request("/api/employees", {
+      cookie: admin,
+      method: "DELETE",
+      body: { id: addedPhoto.data.employee.id, confirmed: true },
+    });
     for (const page of [
       "default",
       "employees",
@@ -513,6 +706,12 @@ async function main() {
       ).status,
       404,
       "duplicate removal rejected"
+    );
+    check(
+      (await request("/api/employees/" + staffId + "/photo", { cookie: admin }))
+        .status,
+      404,
+      "archived staff photo no longer accessible"
     );
     const expired = await db
       .collection("portal_sessions")
