@@ -224,14 +224,42 @@ export default function Dashboard() {
           week beginning {week}.
         </p>
       </Card>
-      {user?.role === "Admin" && (
-        <FinancialSummary
-          key={branch}
-          branches={branchRecords}
-          branchName={branch}
-          week={week}
-        />
-      )}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,512px)_minmax(0,1fr)]">
+        {user?.role === "Admin" && (
+          <FinancialSummary
+            key={branch}
+            branches={branchRecords}
+            branchName={branch}
+            week={week}
+          />
+        )}
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          {metrics
+            .filter((metric) => can(metric[3]))
+            .map(([label, value, hint, path]) => (
+              <Card
+                key={label}
+                extra={
+                  "p-5 " +
+                  (label === "Total sales"
+                    ? "sm:col-span-2 xl:col-span-1 2xl:col-span-2"
+                    : "")
+                }
+              >
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  {label}
+                </p>
+                <p className="mt-2 text-2xl font-bold">{value}</p>
+                <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+                  {hint}
+                </p>
+                <Link to={`/admin/${path}`} className={`${linkStyle} mt-4`}>
+                  View {label.toLowerCase()}
+                </Link>
+              </Card>
+            ))}
+        </div>
+      </div>
       <p className="text-xs text-gray-700 dark:text-gray-300">
         The financial summary is saved in the company database. Other reporting
         below includes records saved in this browser.
@@ -246,24 +274,6 @@ export default function Dashboard() {
           ))}
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-3">
-        {metrics
-          .filter((metric) => can(metric[3]))
-          .map(([label, value, hint, path]) => (
-            <Card key={label} extra="p-5">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                {label}
-              </p>
-              <p className="mt-2 text-2xl font-bold">{value}</p>
-              <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
-                {hint}
-              </p>
-              <Link to={`/admin/${path}`} className={`${linkStyle} mt-4`}>
-                View {label.toLowerCase()}
-              </Link>
-            </Card>
-          ))}
-      </div>
       <Card extra="p-6">
         <div className="flex flex-wrap justify-between gap-3">
           <div>
