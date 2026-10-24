@@ -200,6 +200,181 @@ async function main() {
       "admin can list accounts"
     );
 
+    const financialWeek = "2026-10-12";
+    const financialPath =
+      "/api/financial-summaries?" +
+      new URLSearchParams({ branchId: b1.toString(), week: financialWeek });
+    const figures = {
+      totalSaleCents: 12345,
+      expensesCents: 1000,
+      goodsCents: null,
+      rentCents: 0,
+      profitLossCents: -500,
+    };
+    const financialBody = {
+      branchId: b1.toString(),
+      week: financialWeek,
+      revision: 0,
+      values: figures,
+    };
+    check(
+      (await request(financialPath)).status,
+      401,
+      "financial summary denies anonymous access"
+    );
+    for (const cookie of [manager, employeeCookie]) {
+      check(
+        (await request(financialPath, { cookie })).status,
+        403,
+        "financial summary readable only by admins"
+      );
+      check(
+        (
+          await request("/api/financial-summaries", {
+            cookie,
+            method: "PUT",
+            body: financialBody,
+          })
+        ).status,
+        403,
+        "financial summary writable only by admins"
+      );
+    }
+    check(
+      (await request(financialPath, { cookie: admin })).data.summary,
+      null,
+      "unreported financial week stays empty"
+    );
+    check(
+      (
+        await request("/api/financial-summaries", {
+          cookie: admin,
+          method: "PUT",
+          origin: "https://evil.example",
+          body: financialBody,
+        })
+      ).status,
+      403,
+      "cross-site financial edit denied"
+    );
+    check(
+      (
+        await request("/api/financial-summaries", {
+          cookie: admin,
+          method: "PUT",
+          body: { ...financialBody, week: "2026-02-30" },
+        })
+      ).status,
+      400,
+      "invalid financial week rejected"
+    );
+    check(
+      (
+        await request("/api/financial-summaries", {
+          cookie: admin,
+          method: "PUT",
+          body: {
+            ...financialBody,
+            values: { ...figures, expensesCents: -100 },
+          },
+        })
+      ).status,
+      400,
+      "negative financial expense rejected"
+    );
+    const financialSaved = await request("/api/financial-summaries", {
+      cookie: admin,
+      method: "PUT",
+      body: financialBody,
+    });
+    check(financialSaved.status, 200, "admin can save financial summary");
+    check(
+      financialSaved.data.summary.goodsCents,
+      null,
+      "missing goods value preserved"
+    );
+    check(financialSaved.data.summary.rentCents, 0, "zero rent preserved");
+    check(
+      financialSaved.data.summary.profitLossCents,
+      -500,
+      "loss amount preserved"
+    );
+    const savedFinancial = await db
+      .collection("weekly_financial_summaries")
+      .findOne({ branchId: b1.toString(), week: financialWeek });
+    check(
+      savedFinancial.totalSaleCents,
+      12345,
+      "financial amount persists in MongoDB"
+    );
+    check(
+      savedFinancial.updatedBy,
+      users[0]._id.toString(),
+      "financial edit records admin identity"
+    );
+    check(
+      (
+        await request("/api/financial-summaries", {
+          cookie: admin,
+          method: "PUT",
+          body: financialBody,
+        })
+      ).status,
+      409,
+      "duplicate financial create cannot overwrite saved figures"
+    );
+    const blankValues = Object.fromEntries(
+      Object.keys(figures).map((key) => [key, null])
+    );
+    check(
+      (
+        await request("/api/financial-summaries", {
+          cookie: admin,
+          method: "PUT",
+          body: { ...financialBody, revision: 1, values: blankValues },
+        })
+      ).status,
+      200,
+      "admin can clear financial inputs back to empty"
+    );
+    const clearedFinancial = (await request(financialPath, { cookie: admin }))
+      .data.summary;
+    check(
+      clearedFinancial.totalSaleCents,
+      null,
+      "cleared total sale remains empty after reload"
+    );
+    check(
+      clearedFinancial.profitLossCents,
+      null,
+      "profit loss is not invented when blank"
+    );
+    check(clearedFinancial.revision, 2, "financial edits increment revision");
+    check(
+      (
+        await request("/api/financial-summaries", {
+          cookie: admin,
+          method: "PUT",
+          body: { ...financialBody, revision: 1 },
+        })
+      ).status,
+      409,
+      "stale financial edits rejected"
+    );
+    check(
+      (
+        await request(
+          "/api/financial-summaries?" +
+            new URLSearchParams({
+              branchId: new ObjectId().toString(),
+              week: financialWeek,
+            }),
+          { cookie: admin }
+        )
+      ).status,
+      404,
+      "unknown branch financial access rejected"
+    );
     const sharp = require("sharp");
     const photoBytes = await sharp({
       create: { width: 400, height: 300, channels: 3, background: "#668800" },

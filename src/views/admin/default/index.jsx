@@ -1,5 +1,6 @@
-import useImportedSales,{mergeSales} from "../../../hooks/useImportedSales";
+import useImportedSales, { mergeSales } from "../../../hooks/useImportedSales";
 import WeekSelector from "components/weekSelector";
+import FinancialSummary from "./FinancialSummary";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "lib/navigation";
@@ -103,7 +104,7 @@ function Status({ count, expected = true }) {
 
 export default function Dashboard() {
   const { can, user } = useAuth();
-  const imported=useImportedSales(user?.role==='Admin');
+  const imported = useImportedSales(user?.role === "Admin");
   const { records: employeeRecords, error: employeeError } = useEmployees();
   const employees = can("employees") ? employeeRecords : [];
   const { records: branchRecords, branchError } = useBranches();
@@ -127,7 +128,11 @@ export default function Dashboard() {
         ...data,
         orders: can("weekly-orders") ? data.orders : null,
         checks: can("weekly-stock-checks") ? data.checks : null,
-        reports: can("weekly-sales-reports") ? (data.reports===null?null:mergeSales(data.reports,imported.reports)) : null,
+        reports: can("weekly-sales-reports")
+          ? data.reports === null
+            ? null
+            : mergeSales(data.reports, imported.reports)
+          : null,
         employees,
         branches,
         branchRecords,
@@ -160,7 +165,11 @@ export default function Dashboard() {
   ];
   return (
     <div className="mt-3 space-y-5 text-navy-700 dark:text-white">
-      {imported.error && <p role="alert" className="text-red-600">{imported.error}</p>}
+      {imported.error && (
+        <p role="alert" className="text-red-600">
+          {imported.error}
+        </p>
+      )}
       {branchError && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-300">
           {branchError}
@@ -175,7 +184,10 @@ export default function Dashboard() {
         </div>
         <button
           type="button"
-          onClick={() => {setData(readDashboard(can)); imported.refresh();}}
+          onClick={() => {
+            setData(readDashboard(can));
+            imported.refresh();
+          }}
           className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-medium dark:bg-navy-800"
         >
           <FiRefreshCw />
@@ -212,9 +224,17 @@ export default function Dashboard() {
           week beginning {week}.
         </p>
       </Card>
+      {user?.role === "Admin" && (
+        <FinancialSummary
+          key={branch}
+          branches={branchRecords}
+          branchName={branch}
+          week={week}
+        />
+      )}
       <p className="text-xs text-gray-700 dark:text-gray-300">
-        Reporting uses records saved in this browser. Company accounts and
-        shared submission are not connected yet.
+        The financial summary is saved in the company database. Other reporting
+        below includes records saved in this browser.
       </p>
       {data.errors.length > 0 && (
         <div
