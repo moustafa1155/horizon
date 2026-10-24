@@ -8,7 +8,7 @@ import {
 } from "../../../data/financialSummary.mjs";
 import { formatMoney } from "../weeklySalesReports/salesHelpers.mjs";
 const field =
-  "w-full rounded-xl border border-gray-200 bg-lightPrimary px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-900";
+  "w-full rounded-lg border border-gray-200 bg-lightPrimary px-2.5 py-1.5 text-sm dark:border-white/10 dark:bg-navy-900";
 export default function FinancialSummary({ branches, branchName, week }) {
   const preferred =
     branches.find((b) => b.name === branchName)?.id ||
@@ -16,11 +16,11 @@ export default function FinancialSummary({ branches, branchName, week }) {
   const [choice, setChoice] = useState("");
   const branchId = preferred || choice;
   return (
-    <Card extra="p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <Card extra="w-full max-w-lg p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-bold">Weekly financial summary</h2>
-          <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+          <h2 className="text-base font-bold">Weekly financial summary</h2>
+          <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
             Blank cells mean no figure has been entered. Amounts are in GBP.
           </p>
         </div>
@@ -31,7 +31,7 @@ export default function FinancialSummary({ branches, branchName, week }) {
             value={branchId}
             onChange={(event) => setChoice(event.target.value)}
             disabled={!!preferred}
-            className={field + " mt-2"}
+            className={field + " mt-1"}
           >
             <option value="">Select a branch</option>
             {branches.map((b) => (
@@ -139,8 +139,8 @@ function SummaryEditor({ branchId, week }) {
     }
   }
   return (
-    <div className="mt-5">
-      <p className="mb-3 text-sm">
+    <div className="mt-3">
+      <p className="mb-2 text-xs">
         Week beginning{" "}
         {new Date(week + "T12:00:00Z").toLocaleDateString("en-GB", {
           timeZone: "UTC",
@@ -151,7 +151,7 @@ function SummaryEditor({ branchId, week }) {
       ) : (
         <form onSubmit={save}>
           <div className="overflow-x-auto">
-            <table className="w-full max-w-2xl border-collapse text-sm">
+            <table className="w-full border-collapse text-sm">
               <caption className="sr-only">
                 Weekly financial summary for the selected branch
               </caption>
@@ -160,7 +160,7 @@ function SummaryEditor({ branchId, week }) {
                   <tr key={key}>
                     <th
                       scope="row"
-                      className="w-1/2 border border-gray-200 bg-lightPrimary px-4 py-3 text-left font-medium dark:border-white/10 dark:bg-navy-900"
+                      className="w-1/2 border border-gray-200 bg-lightPrimary px-3 py-2 text-left font-medium dark:border-white/10 dark:bg-navy-900"
                     >
                       {editing ? (
                         <label htmlFor={"finance-" + key}>{label}</label>
@@ -168,7 +168,7 @@ function SummaryEditor({ branchId, week }) {
                         label
                       )}
                     </th>
-                    <td className="border border-gray-200 px-4 py-3 text-right dark:border-white/10">
+                    <td className="border border-gray-200 px-3 py-2 text-right dark:border-white/10">
                       {editing ? (
                         <input
                           id={"finance-" + key}
@@ -198,13 +198,13 @@ function SummaryEditor({ branchId, week }) {
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-3 flex flex-wrap gap-2">
             {editing ? (
               <>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white disabled:opacity-50"
+                  className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
                 >
                   {saving ? "Saving…" : "Save figures"}
                 </button>
@@ -215,7 +215,7 @@ function SummaryEditor({ branchId, week }) {
                     setEditing(false);
                     setError("");
                   }}
-                  className="rounded-xl border border-gray-200 px-5 py-3 dark:border-white/20"
+                  className="rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-white/20"
                 >
                   Cancel
                 </button>
@@ -225,7 +225,7 @@ function SummaryEditor({ branchId, week }) {
                 type="button"
                 onClick={start}
                 disabled={!!error}
-                className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white disabled:opacity-50"
+                className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
                 {record ? "Edit figures" : "Add figures"}
               </button>
@@ -237,7 +237,7 @@ function SummaryEditor({ branchId, week }) {
                 setNotice("");
                 load();
               }}
-              className="rounded-xl px-4 py-3 text-brand-600 dark:text-brand-200"
+              className="rounded-lg px-3 py-2 text-sm text-brand-600 dark:text-brand-200"
             >
               Reload figures
             </button>
@@ -258,7 +258,7 @@ function SummaryEditor({ branchId, week }) {
         </p>
       )}
       {record?.source && (
-        <p className="mt-4 text-xs text-gray-700 dark:text-gray-300">
+        <p className="mt-3 text-xs text-gray-700 dark:text-gray-300">
           Imported from {record.source.file}, {record.source.sheet}. Figures can
           be edited here.
         </p>
