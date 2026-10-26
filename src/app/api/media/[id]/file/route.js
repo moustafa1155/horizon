@@ -6,7 +6,7 @@ import { MEDIA_TYPES } from "../../../../../data/mediaFiles.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(request, context) {
-  const access = await authorize(request, "media");
+  const access = await authorize(request, "default");
   if (access.response) return access.response;
   if (access.user.role !== "Admin")
     return json({ error: "Access unavailable." }, 403);

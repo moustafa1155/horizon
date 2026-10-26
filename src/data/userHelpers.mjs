@@ -14,7 +14,6 @@ export const PAGES = [
   { key: "weekly-staff-timetables", label: "Weekly Staff Timetables", editable: true },
   { key: "branches", label: "Branches", editable: true },
   { key: "users", label: "Users & Permissions", editable: true },
-  { key: "media", label: "Media Library", editable: true },
 ];
 export const ROLES = ["Admin", "Branch Manager", "Employee"];
 export function rolePermissions(role) {

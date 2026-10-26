@@ -1,6 +1,5 @@
 import StaffTimetables from "views/admin/staffTimetables";
 import Users from "views/admin/users";
-import MediaLibrary from "views/admin/media";
 import React from "react";
 
 // Admin Imports
@@ -20,7 +19,6 @@ import {
   MdShoppingBasket,
   MdFactCheck,
   MdPayments,
-  MdPermMedia,
 } from "react-icons/md";
 
 const routes = [
@@ -80,13 +78,6 @@ const routes = [
     path: "users",
     icon: <MdPeople className="h-6 w-6" />,
     component: <Users />,
-  },
-  {
-    name: "Media Library",
-    layout: "/admin",
-    path: "media",
-    icon: <MdPermMedia className="h-6 w-6" />,
-    component: <MediaLibrary />,
   },
 ];
 export default routes;

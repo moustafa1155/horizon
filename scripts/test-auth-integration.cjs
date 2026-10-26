@@ -224,7 +224,7 @@ async function main() {
       );
       check(
         (await request("/admin/media", { cookie })).status,
-        307,
+        404,
         "non-admin media page denied"
       );
       check(

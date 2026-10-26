@@ -6,7 +6,7 @@ import { readMediaBody, prepareMedia } from "lib/mediaUpload.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 async function admin(request, action = "view") {
-  const access = await authorize(request, "media", action);
+  const access = await authorize(request, "default", action);
   if (access.response) return access;
   if (access.user.role !== "Admin")
     return { response: json({ error: "Only admins can manage media." }, 403) };
