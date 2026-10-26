@@ -1,10 +1,11 @@
-import { FiEdit2, FiTrash2 } from "react-icons/fi";
+import { FiEdit2, FiTrash2, FiPaperclip } from "react-icons/fi";
 export default function EmployeeDirectory({
   employees,
   selectedId,
   onSelect,
   onEdit,
   onRemove,
+  onAttachments,
   canEdit,
   canRemove,
 }) {
@@ -117,6 +118,15 @@ export default function EmployeeDirectory({
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex gap-2">
+                    <button
+                      type="button"
+                      aria-label={"Files for " + employee.name}
+                      title={"Files for " + employee.name}
+                      onClick={() => onAttachments(employee)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-lg text-brand-600 hover:bg-brand-100 focus-visible:outline-brand-500 dark:text-brand-200 dark:hover:bg-navy-900"
+                    >
+                      <FiPaperclip aria-hidden="true" />
+                    </button>
                     {canEdit && (
                       <button
                         type="button"

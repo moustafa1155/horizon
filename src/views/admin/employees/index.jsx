@@ -11,6 +11,7 @@ import RemoveEmployeeDialog from "./RemoveEmployeeDialog";
 import useBranches from "../../../hooks/useBranches";
 import { filterEmployees, getWeekStart, addDays } from "./helpers.mjs";
 import EmployeeDirectory from "./EmployeeDirectory";
+import EmployeeFilesDialog from "./EmployeeFilesDialog";
 import WeeklyTimetable from "./WeeklyTimetable";
 
 const inputClass =
@@ -25,6 +26,7 @@ export default function Employees() {
   } = useEmployees();
   const { can, isPreview, user } = useAuth();
   const [adding, setAdding] = useState(false);
+  const [filesEmployee, setFilesEmployee] = useState(null);
   const [removingEmployee, setRemovingEmployee] = useState(null);
   const [notice, setNotice] = useState("");
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -74,6 +76,14 @@ export default function Employees() {
   }
   return (
     <div className="mt-4 space-y-7">
+      {filesEmployee && (
+        <EmployeeFilesDialog
+          key={filesEmployee.id}
+          employee={filesEmployee}
+          canUpload={can("employees", "manage")}
+          onClose={() => setFilesEmployee(null)}
+        />
+      )}
       {notice && (
         <p
           role="status"
@@ -281,6 +291,7 @@ export default function Employees() {
                 setAdding(true);
                 setNotice("");
               }}
+              onAttachments={setFilesEmployee}
               onRemove={(employee) => {
                 setNotice("");
                 setRemovingEmployee(employee);

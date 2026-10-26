@@ -345,6 +345,207 @@ async function main() {
         }
       }
     }
+
+    const attachmentsPath =
+      "/api/employees/" + inserted.insertedIds[0].toString() + "/attachments";
+    const otherAttachmentsPath =
+      "/api/employees/" + inserted.insertedIds[1].toString() + "/attachments";
+    check(
+      (await request(attachmentsPath)).status,
+      401,
+      "anonymous employee attachment access denied"
+    );
+    check(
+      (await request(attachmentsPath, { cookie: employeeCookie })).status,
+      403,
+      "stock-only employee cannot read staff attachments"
+    );
+    check(
+      (await request(attachmentsPath, { cookie: admin })).data.files.length,
+      0,
+      "admin can view employee attachments"
+    );
+    check(
+      (await request(attachmentsPath, { cookie: manager })).status,
+      200,
+      "manager can view own branch employee attachments"
+    );
+    check(
+      (await request(otherAttachmentsPath, { cookie: manager })).status,
+      404,
+      "manager cannot list another branch attachments"
+    );
+    check(
+      (
+        await request(otherAttachmentsPath, {
+          cookie: manager,
+          method: "POST",
+          body: {},
+        })
+      ).status,
+      404,
+      "manager cannot upload to another branch employee"
+    );
+    check(
+      (
+        await request(attachmentsPath, {
+          cookie: employeeCookie,
+          method: "POST",
+          body: {},
+        })
+      ).status,
+      403,
+      "stock-only employee cannot upload staff files"
+    );
+    check(
+      (
+        await request(attachmentsPath, {
+          cookie: admin,
+          method: "POST",
+          origin: "https://evil.example",
+          body: {},
+        })
+      ).status,
+      403,
+      "cross-site employee attachment upload denied"
+    );
+    check(
+      (
+        await request(attachmentsPath, {
+          cookie: admin,
+          method: "POST",
+          body: {},
+        })
+      ).status,
+      400,
+      "employee file upload requires a name"
+    );
+    const attachmentFixtureId = new ObjectId();
+    await db
+      .collection("employee_attachments")
+      .insertOne({
+        _id: attachmentFixtureId,
+        employeeId: inserted.insertedIds[1].toString(),
+        name: "Other branch fixture",
+        originalName: "fixture.txt",
+        size: 1,
+        createdAt: new Date(),
+      });
+    check(
+      (
+        await request(attachmentsPath + "/" + attachmentFixtureId + "/file", {
+          cookie: admin,
+        })
+      ).status,
+      404,
+      "attachment cannot be downloaded through the wrong employee"
+    );
+    check(
+      (
+        await request(
+          otherAttachmentsPath + "/" + attachmentFixtureId + "/file",
+          { cookie: manager }
+        )
+      ).status,
+      404,
+      "manager cannot download another branch attachment"
+    );
+    if (process.env.RUN_BUNNY_LIVE_TEST === "1") {
+      const { createBunnyStorage } = await import(
+        "../src/lib/bunnyStorage.mjs"
+      );
+      const storage = createBunnyStorage();
+      let livePath;
+      try {
+        const bytes = Buffer.from(
+          "Employee attachment integration test. No personal data."
+        );
+        const upload = await fetch(base + attachmentsPath, {
+          method: "POST",
+          headers: {
+            cookie: manager,
+            origin: base,
+            "content-type": "text/plain",
+            "x-file-name": "fixture.txt",
+            "x-attachment-name": encodeURIComponent("Test contract"),
+          },
+          body: bytes,
+        });
+        const result = await upload.json();
+        check(
+          upload.status,
+          201,
+          "manager can upload a named attachment for assigned branch"
+        );
+        const record = await db
+          .collection("employee_attachments")
+          .findOne({ _id: new ObjectId(result.file.id) });
+        livePath = record.storagePath;
+        check(record.name, "Test contract", "custom attachment name saved");
+        check(
+          record.employeeId,
+          inserted.insertedIds[0].toString(),
+          "file is linked to selected employee"
+        );
+        check(
+          record.uploadedBy,
+          users[1]._id.toString(),
+          "file records the uploading user"
+        );
+        check(
+          "storagePath" in result.file,
+          false,
+          "attachment response hides private storage location"
+        );
+        const list = await request(attachmentsPath, { cookie: manager });
+        check(
+          list.data.files[0].name,
+          "Test contract",
+          "saved attachment appears after reload"
+        );
+        const download = await fetch(base + result.file.url, {
+          headers: { cookie: manager },
+        });
+        check(
+          download.status,
+          200,
+          "authorized manager can download employee attachment"
+        );
+        check(
+          download.headers.get("content-disposition").startsWith("attachment;"),
+          true,
+          "employee file downloads rather than executing inline"
+        );
+        check(
+          download.headers
+            .get("content-disposition")
+            .includes("Test%20contract.txt"),
+          true,
+          "download uses chosen file name"
+        );
+        check(
+          Buffer.from(await download.arrayBuffer()).equals(bytes),
+          true,
+          "Bunny attachment preserves original bytes"
+        );
+        check(
+          (await request(result.file.url, { cookie: employeeCookie })).status,
+          403,
+          "employee cannot retrieve uploaded staff attachment"
+        );
+      } finally {
+        if (livePath) {
+          assert.ok(
+            livePath.startsWith("portal-media/employee-attachments/") &&
+              /^[a-f0-9-]+[.]txt$/.test(livePath.split("/").pop())
+          );
+          await storage.remove(livePath);
+          console.log(
+            "PASS temporary employee attachment removed after verification"
+          );
+        }
+      }
+    }
     const financialWeek = "2026-10-12";
     const financialPath =
       "/api/financial-summaries?" +
@@ -1032,6 +1233,11 @@ async function main() {
         .status,
       404,
       "archived staff photo no longer accessible"
+    );
+    check(
+      (await request(attachmentsPath, { cookie: admin })).status,
+      404,
+      "archived employee attachments are no longer accessible"
     );
     const expired = await db
       .collection("portal_sessions")
