@@ -111,3 +111,30 @@ test("Office uploads require the correct document structure", () => {
     validateEmployeeAttachment(Buffer.from("PK"), "contract.docx")
   );
 });
+
+test("Employee attachments accept media formats and reject mismatched content", () => {
+  const mp4 = Buffer.concat([
+    Buffer.from([0, 0, 0, 20]),
+    Buffer.from("ftypisom"),
+    Buffer.alloc(8),
+  ]);
+  assert.equal(
+    validateEmployeeAttachment(mp4, "clip.mp4").contentType,
+    "video/mp4"
+  );
+  assert.equal(
+    validateEmployeeAttachment(Buffer.from("ID3test-only"), "recording.mp3")
+      .contentType,
+    "audio/mpeg"
+  );
+  for (const name of [
+    "clip.mp4",
+    "clip.webm",
+    "recording.mp3",
+    "recording.wav",
+    "recording.ogg",
+  ])
+    assert.throws(() =>
+      validateEmployeeAttachment(Buffer.from("not media"), name)
+    );
+});

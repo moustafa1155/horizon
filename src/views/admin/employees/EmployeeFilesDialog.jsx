@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { FiDownload, FiUpload } from "react-icons/fi";
+import { FiDownload, FiUpload, FiEye } from "react-icons/fi";
 import {
   ATTACHMENT_TYPES,
   attachmentFileError,
   attachmentNameError,
+  attachmentExtension,
 } from "../../../data/employeeAttachments.mjs";
-export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
+export default function EmployeeFilesDialog({
+  employee,
+  canUpload,
+  onClose,
+  embedded = false,
+  onPendingChange,
+}) {
+  const Container = embedded ? "section" : "dialog";
   const dialog = useRef(null);
   const input = useRef(null);
   const [files, setFiles] = useState([]);
@@ -17,7 +25,7 @@ export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
   const path = "/api/employees/" + employee.id + "/attachments";
   useEffect(() => {
     const element = dialog.current;
-    element.showModal();
+    if (!embedded) element.showModal();
     const controller = new AbortController();
     async function load() {
       try {
@@ -38,9 +46,12 @@ export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
     load();
     return () => {
       controller.abort();
-      element.close();
+      if (!embedded) element.close();
     };
-  }, [path]);
+  }, [path, embedded]);
+  useEffect(() => {
+    onPendingChange?.(pending);
+  }, [pending, onPendingChange]);
   async function upload(event) {
     event.preventDefault();
     if (pending || !canUpload) return;
@@ -76,14 +87,18 @@ export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
     }
   }
   return (
-    <dialog
+    <Container
       ref={dialog}
       aria-labelledby="employee-files-title"
       onCancel={(event) => {
         event.preventDefault();
-        if (!pending) onClose();
+        if (!embedded && !pending) onClose();
       }}
-      className="backdrop:bg-black/40 m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-xl overflow-y-auto rounded-3xl bg-white p-6 text-navy-700 shadow-xl dark:bg-navy-800 dark:text-white"
+      className={
+        embedded
+          ? "text-navy-700 dark:text-white"
+          : "backdrop:bg-black/40 m-auto max-h-[90dvh] w-[calc(100%_-_2rem)] max-w-xl overflow-y-auto rounded-3xl bg-white p-6 text-navy-700 shadow-xl dark:bg-navy-800 dark:text-white"
+      }
     >
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -94,22 +109,24 @@ export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
             {employee.name}
           </p>
         </div>
-        <button
-          type="button"
-          aria-label="Close employee files"
-          disabled={pending}
-          onClick={onClose}
-          className="rounded-lg px-3 py-2 text-xl disabled:opacity-50"
-        >
-          ×
-        </button>
+        {!embedded && (
+          <button
+            type="button"
+            aria-label="Close employee files"
+            disabled={pending}
+            onClick={onClose}
+            className="rounded-lg px-3 py-2 text-xl disabled:opacity-50"
+          >
+            ×
+          </button>
+        )}
       </div>
       {canUpload && (
         <form onSubmit={upload} className="mt-5 space-y-4">
           <label className="block text-sm font-medium">
             File name
             <input
-              autoFocus
+              autoFocus={!embedded}
               required
               maxLength={120}
               value={name}
@@ -139,8 +156,8 @@ export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
             />
           </label>
           <p className="text-xs text-gray-700 dark:text-gray-300">
-            PDF, images, Word (.docx), Excel (.xlsx) or text files. Maximum 20
-            MB.
+            PDF, images, Word (.docx), Excel (.xlsx), text, video or audio.
+            Maximum 20 MB.
           </p>
           <button
             type="submit"
@@ -185,14 +202,39 @@ export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
                     MB · {new Date(file.createdAt).toLocaleDateString("en-GB")}
                   </p>
                 </div>
-                <a
-                  href={file.url}
-                  aria-label={"Download " + file.name}
-                  title={"Download " + file.name}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-brand-600 hover:bg-brand-50 dark:text-brand-200 dark:hover:bg-navy-900"
-                >
-                  <FiDownload aria-hidden="true" />
-                </a>
+                <div className="flex shrink-0 gap-1">
+                  {[
+                    "pdf",
+                    "jpg",
+                    "jpeg",
+                    "png",
+                    "webp",
+                    "mp4",
+                    "webm",
+                    "mp3",
+                    "wav",
+                    "ogg",
+                  ].includes(attachmentExtension(file.originalName)) && (
+                    <a
+                      href={file.url + "?preview=1"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={"View " + file.name}
+                      title={"View " + file.name}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-lg text-brand-600 hover:bg-brand-50 dark:text-brand-200 dark:hover:bg-navy-900"
+                    >
+                      <FiEye aria-hidden="true" />
+                    </a>
+                  )}
+                  <a
+                    href={file.url}
+                    aria-label={"Download " + file.name}
+                    title={"Download " + file.name}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-lg text-brand-600 hover:bg-brand-50 dark:text-brand-200 dark:hover:bg-navy-900"
+                  >
+                    <FiDownload aria-hidden="true" />
+                  </a>
+                </div>
               </li>
             ))}
           </ul>
@@ -202,6 +244,6 @@ export default function EmployeeFilesDialog({ employee, canUpload, onClose }) {
           </p>
         )}
       </div>
-    </dialog>
+    </Container>
   );
 }

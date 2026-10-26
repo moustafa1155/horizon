@@ -4,6 +4,7 @@ export const SESSION_KEY = "horizon.user-session.v1";
 export const PAGES = [
   { key: "default", label: "Main Dashboard", editable: false },
   { key: "employees", label: "Employees", editable: true },
+  { key: "employee-files", label: "Employee Files", editable: true },
   { key: "weekly-orders", label: "Weekly Orders", editable: true },
   { key: "weekly-stock-checks", label: "Weekly Stock Checks", editable: true },
   {

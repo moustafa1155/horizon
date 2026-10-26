@@ -63,6 +63,27 @@ export function validateEmployeeAttachment(data, originalName) {
     case "xlsx":
       valid = officeArchive(data, "xl/workbook.xml");
       break;
+    case "mp4":
+      valid = data.length >= 12 && data.subarray(4, 8).toString() === "ftyp";
+      break;
+    case "webm":
+      valid =
+        data.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3])) &&
+        data.subarray(0, 4096).includes(Buffer.from("webm"));
+      break;
+    case "mp3":
+      valid =
+        data.subarray(0, 3).toString() === "ID3" ||
+        (data[0] === 255 && (data[1] & 224) === 224);
+      break;
+    case "wav":
+      valid =
+        data.subarray(0, 4).toString() === "RIFF" &&
+        data.subarray(8, 12).toString() === "WAVE";
+      break;
+    case "ogg":
+      valid = data.subarray(0, 4).toString() === "OggS";
+      break;
     case "txt":
       try {
         new TextDecoder("utf-8", { fatal: true }).decode(data);

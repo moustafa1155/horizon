@@ -421,16 +421,14 @@ async function main() {
       "employee file upload requires a name"
     );
     const attachmentFixtureId = new ObjectId();
-    await db
-      .collection("employee_attachments")
-      .insertOne({
-        _id: attachmentFixtureId,
-        employeeId: inserted.insertedIds[1].toString(),
-        name: "Other branch fixture",
-        originalName: "fixture.txt",
-        size: 1,
-        createdAt: new Date(),
-      });
+    await db.collection("employee_attachments").insertOne({
+      _id: attachmentFixtureId,
+      employeeId: inserted.insertedIds[1].toString(),
+      name: "Other branch fixture",
+      originalName: "fixture.txt",
+      size: 1,
+      createdAt: new Date(),
+    });
     check(
       (
         await request(attachmentsPath + "/" + attachmentFixtureId + "/file", {
@@ -543,6 +541,107 @@ async function main() {
           console.log(
             "PASS temporary employee attachment removed after verification"
           );
+        }
+      }
+    }
+
+    check(
+      (await request("/admin/employee-files")).status,
+      307,
+      "employee files page requires login"
+    );
+    check(
+      (await request("/admin/employee-files", { cookie: admin })).status,
+      200,
+      "admin can access separate employee files page"
+    );
+    check(
+      (await request("/admin/employee-files", { cookie: employeeCookie }))
+        .status,
+      307,
+      "employee cannot access employee files page"
+    );
+    check(
+      (await request("/admin/employee-files", { cookie: manager })).status,
+      307,
+      "new employee files page does not expand manager page access"
+    );
+    if (process.env.RUN_BUNNY_LIVE_TEST === "1") {
+      const { createBunnyStorage } = await import(
+        "../src/lib/bunnyStorage.mjs"
+      );
+      const storage = createBunnyStorage();
+      let previewPath;
+      try {
+        const sharp = require("sharp");
+        const bytes = await sharp({
+          create: { width: 2, height: 2, channels: 3, background: "#668800" },
+        })
+          .png()
+          .toBuffer();
+        const upload = await fetch(base + attachmentsPath, {
+          method: "POST",
+          headers: {
+            cookie: admin,
+            origin: base,
+            "content-type": "image/png",
+            "x-file-name": "preview.png",
+            "x-attachment-name": "Preview fixture",
+          },
+          body: bytes,
+        });
+        const result = await upload.json();
+        check(
+          upload.status,
+          201,
+          "employee media upload accepts image for viewing"
+        );
+        const stored = await db
+          .collection("employee_attachments")
+          .findOne({ _id: new ObjectId(result.file.id) });
+        previewPath = stored.storagePath;
+        const view = await fetch(base + result.file.url + "?preview=1", {
+          headers: { cookie: admin },
+        });
+        check(view.status, 200, "authorized employee image preview loads");
+        check(
+          view.headers.get("content-type"),
+          "image/png",
+          "preview uses validated image content type"
+        );
+        check(
+          view.headers.get("content-disposition").startsWith("inline;"),
+          true,
+          "supported media can be viewed inline"
+        );
+        await view.body.cancel();
+        check(
+          (
+            await request(result.file.url + "?preview=1", {
+              cookie: employeeCookie,
+            })
+          ).status,
+          403,
+          "preview cannot bypass employee role restrictions"
+        );
+        check(
+          (
+            await request(
+              otherAttachmentsPath + "/" + result.file.id + "/file?preview=1",
+              { cookie: manager }
+            )
+          ).status,
+          404,
+          "preview cannot bypass branch and employee matching"
+        );
+      } finally {
+        if (previewPath) {
+          assert.ok(
+            previewPath.startsWith("portal-media/employee-attachments/") &&
+              /^[a-f0-9-]+[.]png$/.test(previewPath.split("/").pop())
+          );
+          await storage.remove(previewPath);
+          console.log("PASS temporary employee preview file removed");
         }
       }
     }

@@ -1,5 +1,6 @@
 import StaffTimetables from "views/admin/staffTimetables";
 import Users from "views/admin/users";
+import EmployeeFiles from "views/admin/employeeFiles";
 import React from "react";
 
 // Admin Imports
@@ -19,6 +20,7 @@ import {
   MdShoppingBasket,
   MdFactCheck,
   MdPayments,
+  MdFolder,
 } from "react-icons/md";
 
 const routes = [
@@ -43,6 +45,13 @@ const routes = [
     icon: <MdPeople className="h-6 w-6" />,
     component: <Employees />,
     secondary: true,
+  },
+  {
+    name: "Employee Files",
+    layout: "/admin",
+    path: "employee-files",
+    icon: <MdFolder className="h-6 w-6" />,
+    component: <EmployeeFiles />,
   },
   {
     name: "Weekly Orders",
