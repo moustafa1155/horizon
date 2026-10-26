@@ -1,5 +1,6 @@
 import StaffTimetables from "views/admin/staffTimetables";
 import Users from "views/admin/users";
+import MediaLibrary from "views/admin/media";
 import React from "react";
 
 // Admin Imports
@@ -19,10 +20,17 @@ import {
   MdShoppingBasket,
   MdFactCheck,
   MdPayments,
+  MdPermMedia,
 } from "react-icons/md";
 
 const routes = [
-  { name: "Weekly Staff Timetables", layout: "/admin", path: "weekly-staff-timetables", icon: <MdPeople className="h-6 w-6" />, component: <StaffTimetables /> },
+  {
+    name: "Weekly Staff Timetables",
+    layout: "/admin",
+    path: "weekly-staff-timetables",
+    icon: <MdPeople className="h-6 w-6" />,
+    component: <StaffTimetables />,
+  },
   {
     name: "Main Dashboard",
     layout: "/admin",
@@ -72,6 +80,13 @@ const routes = [
     path: "users",
     icon: <MdPeople className="h-6 w-6" />,
     component: <Users />,
+  },
+  {
+    name: "Media Library",
+    layout: "/admin",
+    path: "media",
+    icon: <MdPermMedia className="h-6 w-6" />,
+    component: <MediaLibrary />,
   },
 ];
 export default routes;

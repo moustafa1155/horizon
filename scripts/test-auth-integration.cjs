@@ -200,6 +200,151 @@ async function main() {
       "admin can list accounts"
     );
 
+    check(
+      (await request("/api/media")).status,
+      401,
+      "media library denies anonymous access"
+    );
+    check(
+      (await request("/api/media", { cookie: admin })).status,
+      200,
+      "admin can open media library"
+    );
+    for (const cookie of [manager, employeeCookie]) {
+      check(
+        (await request("/api/media", { cookie })).status,
+        403,
+        "media library denies non-admin access"
+      );
+      check(
+        (await request("/api/media", { cookie, method: "POST", body: {} }))
+          .status,
+        403,
+        "non-admin media upload denied"
+      );
+      check(
+        (await request("/admin/media", { cookie })).status,
+        307,
+        "non-admin media page denied"
+      );
+      check(
+        (
+          await request("/api/media/" + new ObjectId().toString() + "/file", {
+            cookie,
+          })
+        ).status,
+        403,
+        "non-admin media download denied"
+      );
+    }
+    check(
+      (
+        await request("/api/media", {
+          cookie: admin,
+          method: "POST",
+          origin: "https://evil.example",
+          body: {},
+        })
+      ).status,
+      403,
+      "cross-site media upload denied"
+    );
+    check(
+      (
+        await request("/api/media/" + new ObjectId().toString() + "/file", {
+          cookie: admin,
+        })
+      ).status,
+      404,
+      "missing media cannot be downloaded"
+    );
+
+    if (process.env.RUN_BUNNY_LIVE_TEST === "1") {
+      const sharp = require("sharp");
+      const { createBunnyStorage } = await import(
+        "../src/lib/bunnyStorage.mjs"
+      );
+      const storage = createBunnyStorage();
+      let livePath;
+      try {
+        const bytes = await sharp({
+          create: { width: 2, height: 2, channels: 3, background: "#668800" },
+        })
+          .png()
+          .toBuffer();
+        const uploaded = await fetch(base + "/api/media", {
+          method: "POST",
+          headers: {
+            cookie: admin,
+            origin: base,
+            "content-type": "image/png",
+            "x-file-name": encodeURIComponent(
+              "Test-only integration image.png"
+            ),
+          },
+          body: bytes,
+        });
+        const result = await uploaded.json();
+        check(uploaded.status, 201, "live authenticated media upload succeeds");
+        const saved = await db
+          .collection("media_files")
+          .findOne({ _id: new ObjectId(result.file.id) });
+        livePath = saved?.storagePath;
+        check(saved.provider, "bunny", "media metadata records Bunny provider");
+        check(
+          saved.uploadedBy,
+          users[0]._id.toString(),
+          "media metadata records uploader"
+        );
+        check(
+          result.file.name,
+          "Test-only integration image.webp",
+          "image download name matches stored format"
+        );
+        check(
+          "storagePath" in result.file,
+          false,
+          "media response hides internal storage paths"
+        );
+        const loaded = await fetch(base + result.file.url, {
+          headers: { cookie: admin },
+        });
+        check(
+          loaded.status,
+          200,
+          "live uploaded media can be retrieved through protected API"
+        );
+        check(
+          loaded.headers.get("cache-control"),
+          "private, no-store",
+          "live media remains private"
+        );
+        check(
+          (await sharp(Buffer.from(await loaded.arrayBuffer())).metadata())
+            .format,
+          "webp",
+          "live media content matches the stored image format"
+        );
+        check(
+          (
+            await request("/api/media/" + result.file.id + "/file", {
+              cookie: manager,
+            })
+          ).status,
+          403,
+          "manager cannot retrieve live uploaded media"
+        );
+      } finally {
+        if (livePath) {
+          assert.ok(
+            livePath.startsWith("portal-media/") &&
+              /^[a-f0-9-]+[.]webp$/.test(livePath.slice("portal-media/".length))
+          );
+          await storage.remove(livePath);
+          console.log("PASS temporary live upload removed after verification");
+        }
+      }
+    }
     const financialWeek = "2026-10-12";
     const financialPath =
       "/api/financial-summaries?" +
