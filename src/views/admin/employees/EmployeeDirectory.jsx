@@ -1,11 +1,10 @@
-import { FiEdit2, FiTrash2, FiPaperclip } from "react-icons/fi";
+import { FiEdit2, FiTrash2 } from "react-icons/fi";
 export default function EmployeeDirectory({
   employees,
   selectedId,
   onSelect,
   onEdit,
   onRemove,
-  onAttachments,
   canEdit,
   canRemove,
 }) {
@@ -55,20 +54,6 @@ export default function EmployeeDirectory({
               >
                 <th scope="row" className="min-w-[210px] px-4 py-4 font-normal">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-brand-100 font-bold text-brand-700 dark:bg-navy-900 dark:text-brand-200">
-                      {employee.profilePhotoUrl ? (
-                        <img
-                          src={employee.profilePhotoUrl}
-                          alt={employee.name + " profile picture"}
-                          loading="lazy"
-                          width={44}
-                          height={44}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        employee.name?.trim().charAt(0).toUpperCase()
-                      )}
-                    </span>
                     <div className="min-w-0">
                       <button
                         type="button"
@@ -118,15 +103,6 @@ export default function EmployeeDirectory({
                 </td>
                 <td className="px-4 py-4">
                   <div className="flex gap-2">
-                    <button
-                      type="button"
-                      aria-label={"Files for " + employee.name}
-                      title={"Files for " + employee.name}
-                      onClick={() => onAttachments(employee)}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-lg text-brand-600 hover:bg-brand-100 focus-visible:outline-brand-500 dark:text-brand-200 dark:hover:bg-navy-900"
-                    >
-                      <FiPaperclip aria-hidden="true" />
-                    </button>
                     {canEdit && (
                       <button
                         type="button"

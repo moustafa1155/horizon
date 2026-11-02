@@ -1,4 +1,3 @@
-import ProfilePhotoInput from "./ProfilePhotoInput";
 import { hostedPreview } from "lib/previewMode";
 import useBranches from "../../../hooks/useBranches";
 import { useEffect, useRef, useState } from "react";
@@ -20,14 +19,13 @@ export default function EmployeeForm({
   });
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [readingPhoto, setReadingPhoto] = useState(false);
   useEffect(() => {
     dialog.current.showModal();
     return () => dialog.current?.close();
   }, []);
   async function submit(e) {
     e.preventDefault();
-    if (readOnly || pending || readingPhoto) return;
+    if (readOnly || pending) return;
     setPending(true);
     setError("");
     try {
@@ -72,14 +70,6 @@ export default function EmployeeForm({
       </p>
       <form onSubmit={submit}>
         <fieldset disabled={pending}>
-          <ProfilePhotoInput
-            initialUrl={employee?.profilePhotoUrl}
-            disabled={pending || readingPhoto || readOnly}
-            onReadingChange={setReadingPhoto}
-            onChange={(profilePhoto) =>
-              setDraft((d) => ({ ...d, profilePhoto }))
-            }
-          />
           <table className="w-full text-sm">
             <caption className="sr-only">Employee details</caption>
             <tbody>
@@ -159,7 +149,7 @@ export default function EmployeeForm({
             </button>
             <button
               type="submit"
-              disabled={readOnly || pending || readingPhoto}
+              disabled={readOnly || pending}
               className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white disabled:opacity-50"
             >
               {pending
