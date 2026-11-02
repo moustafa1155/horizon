@@ -37,7 +37,7 @@ export default function RemoveEmployeeDialog({ employee, onRemove, onCancel }) {
       </h2>
       <p id="remove-employee-description" className="mt-4 text-sm leading-6">
         Are you sure you want to remove <strong>{employee.name}</strong>? Their
-        staff record will be archived and removed from the active directory.
+        staff details and any linked login account will be permanently deleted from the database. This cannot be undone.
         Existing timetable records will be kept.
       </p>
       {error && (

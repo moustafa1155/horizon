@@ -17,6 +17,9 @@ export default function EmployeeForm({
     nationalInsuranceNumber: employee?.nationalInsuranceNumber || "",
     email: employee?.email || "",
   });
+  const [createAccount, setCreateAccount] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   useEffect(() => {
@@ -29,7 +32,7 @@ export default function EmployeeForm({
     setPending(true);
     setError("");
     try {
-      const payload = { ...draft };
+      const payload = { ...draft, ...(!employee && createAccount ? { account: { username, password } } : {}) };
       if (!allowAssignment) delete payload.branchId;
       const result = await onSave(payload);
       if (result) setError(result);
@@ -128,6 +131,26 @@ export default function EmployeeForm({
                   ))}
               </select>
             </label>
+          )}
+          {!employee && allowAssignment && (
+            <div className="mt-5 rounded-xl border border-gray-200 p-4 dark:border-white/10">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input type="checkbox" checked={createAccount} onChange={(e) => setCreateAccount(e.target.checked)} />
+                Create a login account
+              </label>
+              {createAccount && (
+                <div className="mt-4 space-y-4">
+                  <p className="text-sm">This account can access stock checking only. Select an assigned branch above.</p>
+                  <label className="block text-sm">Username
+                    <input required autoComplete="off" minLength={3} maxLength={32} pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}" value={username} onChange={(e) => setUsername(e.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-lightPrimary p-3 dark:bg-navy-900" />
+                  </label>
+                  <label className="block text-sm">Password
+                    <input required type="password" autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={(e) => setPassword(e.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-lightPrimary p-3 dark:bg-navy-900" />
+                  </label>
+                  <p className="text-xs">Use 12–128 characters for the password. Share these login details with the employee.</p>
+                </div>
+              )}
+            </div>
           )}
           {readOnly && (
             <p className="mt-4 text-sm">

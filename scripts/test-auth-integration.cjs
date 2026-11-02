@@ -200,6 +200,31 @@ async function main() {
       "admin can list accounts"
     );
 
+    const accountEmployee = {
+      fullName: "Linked account fixture", phoneNumber: "00000000000",
+      nationalInsuranceNumber: "TEST-LINKED", email: "linked@example.invalid",
+      branchId: b1.toString(), account: { username: "linked.staff", password },
+    };
+    const weakAccount = await request("/api/employees", { cookie: admin, method: "POST", body: { ...accountEmployee, account: { username: "linked.staff", password: "short" } } });
+    check(weakAccount.status, 400, "employee account rejects weak password");
+    check((await request("/api/employees", { cookie: admin, method: "POST", body: { ...accountEmployee, branchId: "" } })).status, 400, "employee login requires branch assignment");
+    const linked = await request("/api/employees", { cookie: admin, method: "POST", body: accountEmployee });
+    check(linked.status, 201, "admin creates staff and login together");
+    check("account" in linked.data.employee || "credentials" in linked.data.employee, false, "employee response contains no login secrets");
+    const linkedUser = await db.collection("portal_users").findOne({ username: "linked.staff" });
+    check(linkedUser.employeeId.toString(), linked.data.employee.id, "login linked to employee record");
+    check(linkedUser.role, "Employee", "new account restricted to employee role");
+    check(typeof linkedUser.credentials.hash, "string", "new login stores password hash");
+    check("password" in linkedUser, false, "plaintext password never stored");
+    const linkedCookie = await login("linked.staff");
+    check((await request("/admin/weekly-stock-checks", { cookie: linkedCookie })).status, 200, "new employee can sign in for stock checking");
+    check((await request("/api/employees", { cookie: linkedCookie })).status, 403, "new employee cannot read staff details");
+    const duplicate = await request("/api/employees", { cookie: admin, method: "POST", body: { ...accountEmployee, email: "rollback@example.invalid", nationalInsuranceNumber: "TEST-ROLLBACK" } });
+    check(duplicate.status, 409, "duplicate employee username rejected");
+    check(await db.collection("employees").countDocuments({ email: "rollback@example.invalid" }), 0, "duplicate account rolls back employee creation");
+    check((await request("/api/employees", { cookie: admin, method: "DELETE", body: { id: linked.data.employee.id, confirmed: true } })).status, 200, "linked employee can be deleted");
+    check(await db.collection("portal_users").findOne({ _id: linkedUser._id }), null, "employee deletion deletes linked login");
+    check((await request("/api/auth/session", { cookie: linkedCookie })).status, 401, "employee deletion revokes linked login session");
     const financialWeek = "2026-10-12";
     const financialPath =
       "/api/financial-summaries?" +
@@ -843,9 +868,9 @@ async function main() {
         await db
           .collection("employees")
           .findOne({ _id: inserted.insertedIds[0] })
-      ).removed,
-      true,
-      "employee is archived rather than deleted"
+      ),
+      null,
+      "employee record is permanently deleted from MongoDB"
     );
     check(
       (await request("/api/employees", { cookie: admin })).data.employees.map(
@@ -869,7 +894,7 @@ async function main() {
         })
       ).status,
       404,
-      "archived employee cannot be edited"
+      "deleted employee cannot be edited"
     );
     check(
       (
@@ -886,7 +911,7 @@ async function main() {
       (await request("/api/employees/" + staffId + "/photo", { cookie: admin }))
         .status,
       404,
-      "archived staff photo no longer accessible"
+      "deleted staff photo no longer accessible"
     );
     const expired = await db
       .collection("portal_sessions")

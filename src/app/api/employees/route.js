@@ -1,6 +1,7 @@
 import { readSmallJson } from "lib/requestSecurity.mjs";
-import { authorize } from "lib/serverAuth";
-import { branchFilter } from "lib/authCore.mjs";
+import { authorize, authDatabase } from "lib/serverAuth";
+import { USERNAME_PATTERN } from "../../../data/userHelpers.mjs";
+import { branchFilter, hashPassword } from "lib/authCore.mjs";
 import { ObjectId, Binary } from "mongodb";
 import {
   prepareProfilePhoto,
@@ -133,6 +134,19 @@ async function saveEmployee(request, editing) {
         });
       if (!branch) return json({ error: "Select an active branch." }, 400);
     }
+    let credentials;
+    if (body.account !== undefined) {
+      if (editing || access.user.role !== "Admin")
+        return json({ error: "Only admins can create accounts when adding employees." }, 403);
+      if (!body.account || typeof body.account.username !== "string" ||
+          !USERNAME_PATTERN.test(body.account.username.trim()) ||
+          typeof body.account.password !== "string" ||
+          body.account.password.length < 12 || body.account.password.length > 128)
+        return json({ error: "Enter a valid username and a password of 12–128 characters." }, 400);
+      if (!record.branchId)
+        return json({ error: "Select an assigned branch to create a login account." }, 400);
+      credentials = await hashPassword(body.account.password);
+    }
     const removePhoto = body.profilePhoto === null;
     if (body.profilePhoto !== undefined && !removePhoto) {
       try {
@@ -160,6 +174,26 @@ async function saveEmployee(request, editing) {
         return json({ error: "Employee no longer exists." }, 404);
       return json({ employee: employeeSummary(record, body.id) });
     }
+    if (credentials) {
+      const db = await authDatabase();
+      const session = db.client.startSession();
+      const employeeId = new ObjectId();
+      try {
+        await session.withTransaction(async () => {
+          const options = { session };
+          await db.collection("portal_security").updateOne({ _id: "account-write" }, { $inc: { version: 1 } }, options);
+          const actor = await db.collection("portal_users").findOne({ _id: new ObjectId(access.user.id), role: "Admin", removed: { $ne: true } }, options);
+          if (!actor) { const error = new Error("Please sign in as an admin."); error.status = 403; throw error; }
+          await db.collection("employees").insertOne({ _id: employeeId, ...record, createdAt: now, updatedAt: now }, options);
+          await db.collection("portal_users").insertOne({
+            name: record.fullName, username: body.account.username.trim().toLowerCase(),
+            credentials, role: "Employee", branchId: record.branchId, employeeId,
+            removed: false, authVersion: 1, createdAt: now, updatedAt: now,
+          }, options);
+        });
+      } finally { await session.endSession(); }
+      return json({ employee: employeeSummary(record, employeeId.toString()) }, 201);
+    }
     const result = await collection.insertOne({
       ...record,
       createdAt: now,
@@ -174,10 +208,10 @@ async function saveEmployee(request, editing) {
       {
         error:
           error.code === 11000
-            ? "An employee with this email or National Insurance number already exists."
-            : "The employee could not be saved. Please try again.",
+            ? "This username, email or National Insurance number already exists."
+            : error.status ? error.message : "The employee could not be saved. Please try again.",
       },
-      error.code === 11000 ? 409 : 503
+      error.code === 11000 ? 409 : error.status || 503
     );
   }
 }
@@ -201,21 +235,25 @@ export async function DELETE(request) {
       400
     );
   try {
-    const now = new Date();
-    const result = await (
-      await employeeCollection()
-    ).updateOne(
-      { _id: new ObjectId(body.id), removed: { $ne: true } },
-      {
-        $set: {
-          removed: true,
-          removedAt: now,
-          removedBy: access.user.id,
-          updatedAt: now,
-        },
-      }
-    );
-    if (!result.matchedCount)
+    const db = await authDatabase();
+    const session = db.client.startSession();
+    let result;
+    try {
+      await session.withTransaction(async () => {
+        const options = { session };
+        await db.collection("portal_security").updateOne({ _id: "account-write" }, { $inc: { version: 1 } }, options);
+        const employeeId = new ObjectId(body.id);
+        result = await db.collection("employees").deleteOne({ _id: employeeId }, options);
+        if (result.deletedCount) {
+          const accounts = await db.collection("portal_users").find({ employeeId }, options).toArray();
+          for (const account of accounts) {
+            await db.collection("portal_sessions").deleteMany({ userId: account._id }, options);
+          }
+          await db.collection("portal_users").deleteMany({ employeeId }, options);
+        }
+      });
+    } finally { await session.endSession(); }
+    if (!result.deletedCount)
       return json(
         { error: "Employee no longer exists or has already been removed." },
         404
