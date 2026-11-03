@@ -7,6 +7,7 @@ import useBranches from "../../../hooks/useBranches";
 import { eligibleBranchNames } from "../../../data/branches.mjs";
 
 import OrderForm from "./OrderForm";
+import OrderDetailsDialog from "./OrderDetailsDialog";
 import { STORAGE_KEY, loadOrders, validateOrder } from "./orderHelpers.mjs";
 
 function initialState() {
@@ -228,7 +229,7 @@ export default function WeeklyOrders() {
                       <button
                         type="button"
                         aria-label={`View ${order.branch} order for ${order.week}`}
-                        aria-pressed={selectedId === order.id}
+                        aria-haspopup="dialog"
                         onClick={() => setSelectedId(order.id)}
                         className="font-medium text-brand-500 hover:underline dark:text-brand-200"
                       >
@@ -243,44 +244,7 @@ export default function WeeklyOrders() {
         )}
       </Card>
       {selected && (
-        <Card extra="p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold">Order details</h2>
-              <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                {selected.branch} · Week beginning {selected.week} ·{" "}
-                {selected.manager}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSelectedId(null)}
-              className="text-sm text-brand-500 hover:underline dark:text-brand-200"
-            >
-              Close details
-            </button>
-          </div>
-          <ul className="mt-5 divide-y divide-gray-200 dark:divide-white/10">
-            {selected.items.map((item) => (
-              <li
-                key={item.product}
-                className="flex justify-between gap-4 py-3 text-sm"
-              >
-                <span>{item.product}</span>
-                <span className="font-bold">Quantity: {item.quantity}</span>
-              </li>
-            ))}
-          </ul>
-          {selected.notes && (
-            <p className="mt-4 whitespace-pre-wrap text-sm">
-              Notes: {selected.notes}
-            </p>
-          )}
-          <p className="mt-4 text-xs text-gray-700 dark:text-gray-300">
-            Saved locally on{" "}
-            {new Date(selected.placedAt).toLocaleString("en-GB")}
-          </p>
-        </Card>
+        <OrderDetailsDialog key={selected.id} order={selected} onClose={() => setSelectedId(null)} />
       )}
     </div>
   );

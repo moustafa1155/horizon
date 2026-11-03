@@ -200,6 +200,21 @@ async function main() {
       "admin can list accounts"
     );
 
+    await db.collection("branches").updateOne({ _id: b1 }, { $set: { type: "" } });
+    const stockDraft = { branch: "Auth test A", employee: "Spoofed name", week: "2026-11-02", items: [{ product: "Test product", quantity: 10 }], notes: "Test only" };
+    check((await request("/api/stock-checks")).status, 401, "anonymous stock access denied");
+    check((await request("/api/stock-checks", { cookie: manager })).status, 403, "manager stock access denied");
+    check((await request("/api/stock-checks", { cookie: employeeCookie, method: "POST", origin: "https://evil.example", body: stockDraft })).status, 403, "cross-site stock submission denied");
+    check((await request("/api/stock-checks", { cookie: employeeCookie, method: "POST", body: { ...stockDraft, branch: "Auth test B" } })).status, 403, "employee cannot submit stock for another branch");
+    const stockSaved = await request("/api/stock-checks", { cookie: employeeCookie, method: "POST", body: stockDraft });
+    check(stockSaved.status, 201, "employee submits stock with unspecified imported branch type");
+    check(stockSaved.data.check.employee, users[2].name, "stock author comes from authenticated account");
+    check(await db.collection("weekly_stock_checks").countDocuments({ branchId: b1.toString(), week: stockDraft.week }), 1, "stock persists in MongoDB");
+    check((await request("/api/stock-checks", { cookie: admin })).data.checks.length, 1, "admin sees employee submission");
+    check((await request("/api/stock-checks", { cookie: employeeCookie, method: "POST", body: stockDraft })).status, 409, "duplicate branch week stock rejected");
+    await db.collection("weekly_stock_checks").insertOne({ branchId: b2.toString(), week: stockDraft.week, recordedAt: new Date().toISOString() });
+    check((await request("/api/stock-checks", { cookie: employeeCookie })).data.checks.length, 1, "employee cannot read other branch stock");
+    await db.collection("branches").updateOne({ _id: b1 }, { $set: { type: "permanent" } });
     const accountEmployee = {
       fullName: "Linked account fixture", phoneNumber: "00000000000",
       nationalInsuranceNumber: "TEST-LINKED", email: "linked@example.invalid",

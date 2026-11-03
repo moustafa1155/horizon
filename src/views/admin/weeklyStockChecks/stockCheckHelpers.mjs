@@ -1,3 +1,7 @@
+import { eligibleBranchNames } from "../../../data/branches.mjs";
+export function stockCheckBranchNames(records, week) {
+  return eligibleBranchNames(records.map(record => ({ ...record, type: record.type || "permanent" })), week);
+}
 export const STORAGE_KEY = "horizon.weekly-stock-checks.v1";
 
 export function currentWeek() {

@@ -1,6 +1,6 @@
 import WeekSelector from "components/weekSelector";
-import { eligibleBranchNames } from "../../../data/branches.mjs";
-import { useState } from "react";
+import { stockCheckBranchNames } from "./stockCheckHelpers.mjs";
+import { useEffect, useState } from "react";
 import Card from "components/card";
 import { currentWeek } from "./stockCheckHelpers.mjs";
 
@@ -8,14 +8,19 @@ const field =
   "mt-2 w-full rounded-xl border border-gray-200 bg-lightPrimary p-3 text-sm text-navy-700 outline-none focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-navy-900 dark:text-white";
 const blankItem = () => ({ product: "", quantity: "" });
 
-export default function StockCheckForm({ branchRecords, onSave, onCancel }) {
+export default function StockCheckForm({ branchRecords, employeeName, onSave, onCancel }) {
   const [branch, setBranch] = useState("");
-  const [employee, setEmployee] = useState("");
+  const [employee, setEmployee] = useState(employeeName || "");
   const [week, setWeek] = useState(currentWeek);
   const [items, setItems] = useState([blankItem()]);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
-  const branches = eligibleBranchNames(branchRecords, week);
+  const branches = stockCheckBranchNames(branchRecords, week);
+  const [pending, setPending] = useState(false);
+  useEffect(() => {
+    if (branches.length === 1) setBranch(branches[0]);
+    else if (!branches.includes(branch)) setBranch("");
+  }, [branchRecords, week, branch]);
   function updateItem(index, key, value) {
     setItems((current) =>
       current.map((item, position) =>
@@ -23,9 +28,13 @@ export default function StockCheckForm({ branchRecords, onSave, onCancel }) {
       )
     );
   }
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    setError(onSave({ branch, employee, week, items, notes }));
+    if (pending) return;
+    setPending(true);
+    try { setError(await onSave({ branch, employee, week, items, notes })); }
+    catch { setError("The stock check could not be saved. Please try again."); }
+    finally { setPending(false); }
   }
   return (
     <Card extra="p-6">
@@ -42,6 +51,7 @@ export default function StockCheckForm({ branchRecords, onSave, onCancel }) {
         </p>
       )}
       <form onSubmit={submit} className="mt-5 space-y-5">
+        <fieldset disabled={pending} className="space-y-5">
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label htmlFor="check-branch" className="text-sm font-medium">
@@ -50,7 +60,7 @@ export default function StockCheckForm({ branchRecords, onSave, onCancel }) {
             <select
               id="check-branch"
               required
-              disabled={!branches.length}
+              disabled={pending || !branches.length}
               value={branch}
               onChange={(event) => setBranch(event.target.value)}
               className={field}
@@ -191,9 +201,10 @@ export default function StockCheckForm({ branchRecords, onSave, onCancel }) {
             disabled={!branches.length}
             className="rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Save weekly stock check
+            {pending ? "Saving…" : "Save weekly stock check"}
           </button>
         </div>
+        </fieldset>
       </form>
     </Card>
   );

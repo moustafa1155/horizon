@@ -13,7 +13,7 @@ function readBranches() {
   }
 }
 
-export default function useBranches() {
+export default function useBranches({ databaseOnly = false } = {}) {
   const [state, setState] = useState(readBranches);
   const [databaseBranches,setDatabaseBranches]=useState([]);
   const [databaseError,setDatabaseError]=useState("");
@@ -44,6 +44,6 @@ export default function useBranches() {
     return "";
   }
   const combined=new Map(databaseBranches.map(b=>[b.name.toLowerCase(),b]));
-  for(const b of state.records)combined.set(b.name.toLowerCase(),b);
-  return { ...state, records:[...combined.values()], branchError:state.branchError||databaseError, saveBranches };
+  for(const b of databaseOnly ? [] : state.records)combined.set(b.name.toLowerCase(),b);
+  return { ...state, records:[...combined.values()], branchError:(databaseOnly ? "" : state.branchError)||databaseError, saveBranches };
 }

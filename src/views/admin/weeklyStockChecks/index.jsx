@@ -1,38 +1,37 @@
 import WeekSelector from "components/weekSelector";
 import { useAuth } from "../../../contexts/AuthContext";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "components/card";
 import { FiPackage } from "react-icons/fi";
 import useBranches from "../../../hooks/useBranches";
-import { eligibleBranchNames } from "../../../data/branches.mjs";
+
 
 import StockCheckForm from "./StockCheckForm";
 import {
-  STORAGE_KEY,
-  loadStockChecks,
+  stockCheckBranchNames,
   validateStockCheck,
 } from "./stockCheckHelpers.mjs";
 
-function initialState() {
-  try {
-    return { checks: loadStockChecks(window.localStorage), error: "" };
-  } catch {
-    return {
-      checks: [],
-      error:
-        "Saved checks could not be loaded. Please check browser storage before saving another stock check.",
-    };
-  }
-}
-
 export default function WeeklyStockChecks() {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const canManage = can("weekly-stock-checks", "manage");
-  const { records: branchRecords, branchError } = useBranches();
+  const { records: allBranches, branchError } = useBranches({ databaseOnly: true });
+  const branchRecords = allBranches.filter(record => user?.role === "Admin" || record.id === user?.branchId);
   const branches = branchRecords
     .filter((record) => !record.removed)
     .map((record) => record.name);
-  const [state, setState] = useState(initialState);
+  const [state, setState] = useState({ checks: [], error: "" });
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let active = true;
+    fetch("/api/stock-checks", { cache: "no-store" }).then(async response => {
+      const data = await response.json();
+      if (!response.ok) throw Error(data.error);
+      if (active) setState({ checks: data.checks, error: "" });
+    }).catch(error => { if (active) setState({ checks: [], error: error.message || "Stock checks could not be loaded." }); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
   const [showForm, setShowForm] = useState(false);
   const [branch, setBranch] = useState("all");
   const [week, setWeek] = useState("");
@@ -44,41 +43,34 @@ export default function WeeklyStockChecks() {
       (!week || check.week === week)
   );
   const selected = filtered.find((check) => check.id === selectedId);
-  function saveStockCheck(draft) {
+  async function saveStockCheck(draft) {
     if (!canManage)
       return "You do not have permission to add records on this page.";
     if (state.error) return state.error;
     if (branchError) return branchError;
     const error = validateStockCheck(
       draft,
-      eligibleBranchNames(branchRecords, draft.week),
+      stockCheckBranchNames(branchRecords, draft.week),
       state.checks
     );
     if (error) return error;
-    const check = {
-      ...draft,
-      id: crypto.randomUUID(),
-      employee: draft.employee.trim(),
-      notes: draft.notes.trim(),
-      items: draft.items.map((item) => ({
-        product: item.product.trim(),
-        quantity: Number(item.quantity),
-      })),
-      recordedAt: new Date().toISOString(),
-    };
-    const checks = [check, ...state.checks];
+    let check;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(checks));
-    } catch {
-      return "The check could not be saved. Check browser storage and try again.";
-    }
+      const response = await fetch("/api/stock-checks", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft),
+      });
+      const data = await response.json();
+      if (!response.ok) return data.error || "The stock check could not be saved.";
+      check = data.check;
+    } catch { return "The stock check could not be sent. Please try again."; }
+    const checks = [check, ...state.checks];
     setState({ checks, error: "" });
     setShowForm(false);
     setSelectedId(check.id);
     setBranch("all");
     setWeek("");
     setNotice(
-      "Stock check saved in this browser. It has not been sent to the company."
+      "Stock check submitted and saved to the company database."
     );
     return "";
   }
@@ -109,9 +101,9 @@ export default function WeeklyStockChecks() {
         )}
       </div>
       <p className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 dark:border-white/10 dark:bg-navy-800 dark:text-gray-300">
-        Stock checks are saved on this browser only. Company submission and
-        employee accounts across devices are not connected yet.
+        Stock checks are saved to the company database. Employees can submit checks for their assigned branch.
       </p>
+      {loading && <p role="status">Loading stock checks…</p>}
       {state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-300">
           {state.error}
@@ -128,6 +120,7 @@ export default function WeeklyStockChecks() {
       {showForm && canManage && (
         <StockCheckForm
           branchRecords={branchRecords}
+          employeeName={user?.name}
           onSave={saveStockCheck}
           onCancel={() => setShowForm(false)}
         />
@@ -281,7 +274,7 @@ export default function WeeklyStockChecks() {
             </p>
           )}
           <p className="mt-4 text-xs text-gray-700 dark:text-gray-300">
-            Saved locally on{" "}
+            Submitted on{" "}
             {new Date(selected.recordedAt).toLocaleString("en-GB")}
           </p>
         </Card>
