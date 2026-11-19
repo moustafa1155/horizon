@@ -1,2 +1,14 @@
-import {useEffect,useState} from 'react';import {loadShifts} from '../views/admin/staffTimetables/timetableHelpers.mjs';
-export default function useShifts(){const read=()=>{try{return {records:loadShifts(window.localStorage),error:''}}catch{return {records:[],error:'Saved shifts could not be loaded. Existing data has not been overwritten.'}}};const [state,setState]=useState(read);useEffect(()=>{const refresh=()=>setState(read());const events=['storage','focus','horizon:shifts-updated'];events.forEach(e=>window.addEventListener(e,refresh));return()=>events.forEach(e=>window.removeEventListener(e,refresh));},[]);return state;}
+import useDatabaseRecords, { saveDatabaseRecord } from "./useDatabaseRecords";
+export default function useShifts() {
+  const state = useDatabaseRecords("/api/timetables", "timetables");
+  async function saveWeek(employeeId, week, rows) {
+    if (state.loading || state.error) return state.error || "Timetables are still loading.";
+    const current = state.records.find(record => record.employeeId === employeeId && record.week === week);
+    try {
+      await saveDatabaseRecord("/api/timetables", { employeeId, week, rows, revision: current?.revision || 0 }, "PUT");
+      await state.refresh();
+      return "";
+    } catch (error) { await state.refresh(); return error.message; }
+  }
+  return { ...state, records: state.records.flatMap(record => record.rows), saveWeek };
+}

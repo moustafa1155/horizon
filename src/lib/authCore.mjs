@@ -70,7 +70,7 @@ export function allows(user, page, action = "view") {
 export function branchFilter(user) {
   return user.role === "Admin"
     ? {}
-    : { branchId: user.branchId || "__unassigned__" };
+    : { branchId: user.branchId || { $in: [] } };
 }
 
 function configuredOrigin(value) {

@@ -1,3 +1,5 @@
+import ProductInput from "components/productOptions";
+import useDatabaseRecords from "../../../hooks/useDatabaseRecords";
 import WeekSelector from "components/weekSelector";
 import { stockCheckBranchNames } from "./stockCheckHelpers.mjs";
 import { useEffect, useState } from "react";
@@ -9,6 +11,7 @@ const field =
 const blankItem = () => ({ product: "", quantity: "" });
 
 export default function StockCheckForm({ branchRecords, employeeName, onSave, onCancel }) {
+  const catalog = useDatabaseRecords("/api/products", "products");
   const [branch, setBranch] = useState("");
   const [employee, setEmployee] = useState(employeeName || "");
   const [week, setWeek] = useState(currentWeek);
@@ -113,15 +116,16 @@ export default function StockCheckForm({ branchRecords, employeeName, onSave, on
                   >
                     Product {index + 1}
                   </label>
-                  <input
+                  <ProductInput
+                    catalog={catalog}
                     id={`product-${index}`}
                     required
                     maxLength={160}
                     value={item.product}
-                    onChange={(event) =>
-                      updateItem(index, "product", event.target.value)
+                    onChange={(value) =>
+                      updateItem(index, "product", value)
                     }
-                    placeholder="Product name or code"
+                    placeholder="Search or select a product"
                     className={field}
                   />
                 </div>

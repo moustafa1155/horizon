@@ -45,12 +45,15 @@ export async function currentUser() {
   const token = (await cookies()).get(
     cookieName(process.env.NODE_ENV === "production")
   )?.value;
+  return userForSession(token);
+}
+export async function userForSession(token, channel) {
   if (!/^[a-f0-9]{64}$/.test(token || "")) return null;
   const db = await authDatabase();
   const session = await db
     .collection("portal_sessions")
     .findOne({ _id: tokenHash(token) });
-  if (!session) return null;
+  if (!session || session.channel !== channel) return null;
   return sessionUser(
     session,
     await db.collection("portal_users").findOne({ _id: session.userId })
@@ -62,6 +65,8 @@ export async function authorize(request, page, action = "view") {
   try {
     const user = await currentUser();
     if (!user) return { response: json({ error: "Please sign in." }, 401) };
+    if (user.role === "Branch Manager" && !user.branchId)
+      return { response: json({ error: "Ask an admin to assign your branch." }, 403) };
     if (!allows(user, page, action))
       return { response: json({ error: "Access unavailable." }, 403) };
     return { user };

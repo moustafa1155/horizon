@@ -188,7 +188,7 @@ export default function WeeklyStockChecks() {
           </div>
         ) : (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[600px] text-start text-sm">
+            <table className="portal-stacked-table w-full min-w-[600px] text-start text-sm">
               <caption className="sr-only">Weekly stock checks</caption>
               <thead>
                 <tr className="border-b border-gray-200 text-xs text-gray-700 dark:border-white/10 dark:text-gray-300">
@@ -215,11 +215,11 @@ export default function WeeklyStockChecks() {
                     key={check.id}
                     className="border-b border-gray-100 dark:border-white/10"
                   >
-                    <td className="px-2 py-4 font-medium">{check.branch}</td>
-                    <td className="px-2 py-4">{check.week}</td>
-                    <td className="px-2 py-4">{check.employee}</td>
-                    <td className="px-2 py-4">{check.items.length}</td>
-                    <td className="px-2 py-4">
+                    <td data-label="Branch" className="px-2 py-4 font-medium">{check.branch}</td>
+                    <td data-label="Week" className="px-2 py-4">{check.week}</td>
+                    <td data-label="Checked by" className="px-2 py-4">{check.employee}</td>
+                    <td data-label="Products" className="px-2 py-4">{check.items.length}</td>
+                    <td data-label="Stock check" className="px-2 py-4">
                       <button
                         type="button"
                         aria-label={`View ${check.branch} check for ${check.week}`}

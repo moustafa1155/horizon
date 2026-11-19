@@ -4,7 +4,7 @@ import { Link } from "lib/navigation";
 
 const Navbar = ({ onOpenSidenav, brandText }) => {
   return (
-    <nav aria-label="Page header" className="sticky top-4 z-40 flex flex-row flex-wrap items-center justify-between gap-3 rounded-xl bg-white/10 p-2 backdrop-blur-xl dark:bg-[#121d104d]">
+    <nav aria-label="Page header" className="portal-heading sticky top-4 z-40 flex flex-row flex-wrap items-center justify-between gap-3 rounded-xl bg-white/10 p-2 backdrop-blur-xl dark:bg-[#121d104d]">
       <div className="ml-[6px]">
         <div className="h-6 w-[224px] pt-1">
           <a

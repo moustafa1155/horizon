@@ -15,7 +15,7 @@ export default function EmployeeDirectory({
       tabIndex={0}
       className="overflow-x-auto rounded-xl border border-gray-200 focus-visible:outline-brand-500 dark:border-white/10"
     >
-      <table className="w-full min-w-[1050px] text-left text-sm text-navy-700 dark:text-white">
+      <table className="portal-stacked-table w-full min-w-[1050px] text-left text-sm text-navy-700 dark:text-white">
         <caption className="sr-only">
           Employee contact details, branch, role and staff actions
         </caption>
@@ -70,7 +70,7 @@ export default function EmployeeDirectory({
                     </div>
                   </div>
                 </th>
-                <td className="whitespace-nowrap px-4 py-4">
+                <td data-label="Phone" className="whitespace-nowrap px-4 py-4">
                   {employee.phone ? (
                     <a
                       href={"tel:" + employee.phone.replaceAll(" ", "")}
@@ -82,10 +82,10 @@ export default function EmployeeDirectory({
                     ""
                   )}
                 </td>
-                <td className="whitespace-nowrap px-4 py-4">
+                <td data-label="National Insurance" className="whitespace-nowrap px-4 py-4">
                   {employee.nationalInsuranceNumber || ""}
                 </td>
-                <td className="px-4 py-4">
+                <td data-label="Email" className="px-4 py-4">
                   {employee.email ? (
                     <a
                       href={"mailto:" + employee.email}
@@ -97,11 +97,11 @@ export default function EmployeeDirectory({
                     ""
                   )}
                 </td>
-                <td className="px-4 py-4">{employee.branch || ""}</td>
-                <td className="whitespace-nowrap px-4 py-4">
+                <td data-label="Branch" className="px-4 py-4">{employee.branch || ""}</td>
+                <td data-label="Role" className="whitespace-nowrap px-4 py-4">
                   {employee.role || ""}
                 </td>
-                <td className="px-4 py-4">
+                <td data-label="Actions" className="px-4 py-4">
                   <div className="flex gap-2">
                     {canEdit && (
                       <button

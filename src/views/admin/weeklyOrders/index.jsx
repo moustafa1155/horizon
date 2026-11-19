@@ -1,26 +1,15 @@
+import useDatabaseRecords, { saveDatabaseRecord } from "../../../hooks/useDatabaseRecords";
 import WeekSelector from "components/weekSelector";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useState } from "react";
 import Card from "components/card";
 import { FiPackage } from "react-icons/fi";
 import useBranches from "../../../hooks/useBranches";
-import { eligibleBranchNames } from "../../../data/branches.mjs";
+import { stockCheckBranchNames } from "../weeklyStockChecks/stockCheckHelpers.mjs";
 
 import OrderForm from "./OrderForm";
 import OrderDetailsDialog from "./OrderDetailsDialog";
-import { STORAGE_KEY, loadOrders, validateOrder } from "./orderHelpers.mjs";
-
-function initialState() {
-  try {
-    return { orders: loadOrders(window.localStorage), error: "" };
-  } catch {
-    return {
-      orders: [],
-      error:
-        "Saved orders could not be loaded. Please check browser storage before placing another order.",
-    };
-  }
-}
+import { validateOrder } from "./orderHelpers.mjs";
 
 export default function WeeklyOrders() {
   const { can, user } = useAuth();
@@ -30,7 +19,9 @@ export default function WeeklyOrders() {
   const branches = branchRecords
     .filter((record) => !record.removed)
     .map((record) => record.name);
-  const [state, setState] = useState(initialState);
+  const database = useDatabaseRecords("/api/orders", "orders");
+  const state = { orders: database.records, error: database.error };
+  const [submissionVersion, setSubmissionVersion] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [branch, setBranch] = useState("all");
   const [week, setWeek] = useState("");
@@ -43,41 +34,30 @@ export default function WeeklyOrders() {
       (!week || order.week === week)
   );
   const selected = filtered.find((order) => order.id === selectedId);
-  function placeOrder(draft) {
+  async function placeOrder(draft) {
     if (!canManage)
       return "You do not have permission to add records on this page.";
     if (state.error) return state.error;
     if (branchError) return branchError;
     const error = validateOrder(
       draft,
-      eligibleBranchNames(branchRecords, draft.week),
+      stockCheckBranchNames(branchRecords, draft.week),
       state.orders
     );
     if (error) return error;
-    const order = {
-      ...draft,
-      id: crypto.randomUUID(),
-      manager: draft.manager.trim(),
-      notes: draft.notes.trim(),
-      items: draft.items.map((item) => ({
-        product: item.product.trim(),
-        quantity: Number(item.quantity),
-      })),
-      placedAt: new Date().toISOString(),
-    };
-    const orders = [order, ...state.orders];
+    let order;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-    } catch {
-      return "The order could not be saved. Check browser storage and try again.";
-    }
-    setState({ orders, error: "" });
+      const data = await saveDatabaseRecord("/api/orders", draft);
+      order = data.order;
+      await database.refresh();
+      setSubmissionVersion(value => value + 1);
+    } catch (error) { return error.message; }
     setShowForm(false);
     setSelectedId(order.id);
     setBranch("all");
     setWeek("");
     setNotice(
-      "Order saved in this browser. It has not been sent to the company or a supplier."
+      "Order saved to the company database."
     );
     return "";
   }
@@ -108,8 +88,7 @@ export default function WeeklyOrders() {
         )}
       </div>
       <p className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 dark:border-white/10 dark:bg-navy-800 dark:text-gray-300">
-        Orders are saved on this browser only. Company-wide submission and
-        manager accounts across devices are not connected yet.
+        Orders are saved in the company database and shared with authorised users.
       </p>
       {state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-300">
@@ -194,7 +173,7 @@ export default function WeeklyOrders() {
           </div>
         ) : (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[600px] text-start text-sm">
+            <table className="portal-stacked-table w-full min-w-[600px] text-start text-sm">
               <caption className="sr-only">Weekly product orders</caption>
               <thead>
                 <tr className="border-b border-gray-200 text-xs text-gray-700 dark:border-white/10 dark:text-gray-300">
@@ -221,11 +200,11 @@ export default function WeeklyOrders() {
                     key={order.id}
                     className="border-b border-gray-100 dark:border-white/10"
                   >
-                    <td className="px-2 py-4 font-medium">{order.branch}</td>
-                    <td className="px-2 py-4">{order.week}</td>
-                    <td className="px-2 py-4">{order.manager}</td>
-                    <td className="px-2 py-4">{order.items.length}</td>
-                    <td className="px-2 py-4">
+                    <td data-label="Branch" className="px-2 py-4 font-medium">{order.branch}</td>
+                    <td data-label="Week" className="px-2 py-4">{order.week}</td>
+                    <td data-label="Manager" className="px-2 py-4">{order.manager}</td>
+                    <td data-label="Products" className="px-2 py-4">{order.items.length}</td>
+                    <td data-label="Order" className="px-2 py-4">
                       <button
                         type="button"
                         aria-label={`View ${order.branch} order for ${order.week}`}

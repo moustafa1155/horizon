@@ -1,4 +1,5 @@
 import { authorize } from "lib/serverAuth";
+import { branchFilter } from "lib/authCore.mjs";
 import { getDatabase } from "lib/mongodb";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function GET(request) {
     )
       .collection("weekly_sales_reports")
       .find(
-        {},
+        branchFilter(access.user),
         {
           projection: {
             branch: 1,
@@ -19,6 +20,7 @@ export async function GET(request) {
             cashCents: 1,
             cardCents: 1,
             sourceCostCents: 1,
+            costCents: 1,
             notes: 1,
             manager: 1,
             savedAt: 1,

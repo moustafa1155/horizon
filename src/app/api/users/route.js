@@ -13,6 +13,7 @@ const fail = (message, status = 400) => {
 export async function GET(request) {
   const access = await authorize(request, "users");
   if (access.response) return access.response;
+  if (access.user.role !== "Admin") return json({ error: "Only admins can manage user accounts." }, 403);
   try {
     return json({
       users: (
@@ -76,6 +77,7 @@ export async function PUT(request) {
 async function save(request, editing) {
   const access = await authorize(request, "users", "manage");
   if (access.response) return access.response;
+  if (access.user.role !== "Admin") return json({ error: "Only admins can manage user accounts." }, 403);
   let body;
   try {
     body = await readSmallJson(request);
@@ -178,6 +180,7 @@ async function save(request, editing) {
 export async function PATCH(request) {
   const access = await authorize(request, "users", "manage");
   if (access.response) return access.response;
+  if (access.user.role !== "Admin") return json({ error: "Only admins can manage user accounts." }, 403);
   let body;
   try {
     body = await readSmallJson(request);

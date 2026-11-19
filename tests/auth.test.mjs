@@ -72,7 +72,7 @@ test("Branch filters fail closed without assignment", () => {
     branchId: "b1",
   });
   assert.deepEqual(branchFilter({ role: "Branch Manager" }), {
-    branchId: "__unassigned__",
+    branchId: { $in: [] },
   });
 });
 test("Mutation requests require an exact origin and production uses host-only secure cookie name", () => {

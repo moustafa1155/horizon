@@ -1,51 +1,36 @@
-import useImportedSales,{mergeSales} from "../../../hooks/useImportedSales";
+import DailySalesTable, { dailyRows } from "./DailySalesTable";
+import useDatabaseRecords from "../../../hooks/useDatabaseRecords";
 import WeekSelector from "components/weekSelector";
 import { useAuth } from "../../../contexts/AuthContext";
 import { useState } from "react";
 import Card from "components/card";
 import { FiBarChart2 } from "react-icons/fi";
 import useBranches from "../../../hooks/useBranches";
-import { eligibleBranchNames } from "../../../data/branches.mjs";
 
 import { currentWeek } from "../weeklyOrders/orderHelpers.mjs";
 import SalesReportForm from "./SalesReportForm";
 import {
-  STORAGE_KEY,
-  loadReports,
-  validateReport,
-  toCents,
   totals,
   formatMoney,
 } from "./salesHelpers.mjs";
 
-function initialState() {
-  try {
-    return { reports: loadReports(window.localStorage), error: "" };
-  } catch {
-    return {
-      reports: [],
-      error:
-        "Saved reports could not be loaded. Check browser storage before saving another report.",
-    };
-  }
-}
-
 export default function WeeklySalesReports() {
   const { can, user } = useAuth();
-  const imported=useImportedSales(user?.role==='Admin');
   const canManage = can("weekly-sales-reports", "manage");
   const { records: allBranches, branchError } = useBranches();
   const branchRecords=allBranches.filter(b=>user?.role!=="Branch Manager"||user?.managerPreview||b.id===user?.branchId);
   const branches = branchRecords
     .filter((record) => !record.removed)
     .map((record) => record.name);
-  const [state, setState] = useState(initialState);
+  const database = useDatabaseRecords("/api/sales-reports", "reports", user?.role === "Admin");
+  const state = { reports: database.records, error: database.error };
+  const [editingReport, setEditingReport] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [branch, setBranch] = useState("all");
   const [week, setWeek] = useState(currentWeek);
   const [selectedId, setSelectedId] = useState(null);
   const [notice, setNotice] = useState("");
-  const allReports=mergeSales(state.reports,imported.reports);
+  const allReports=state.reports;
   const filtered = allReports.filter(
     (report) =>
       (branch === "all" || report.branch === branch) &&
@@ -53,46 +38,16 @@ export default function WeeklySalesReports() {
   );
   const summary = totals(filtered);
   const selected = filtered.find((report) => report.id === selectedId);
-  function saveReport(draft) {
-    if (!canManage)
-      return "You do not have permission to add records on this page.";
-    if (state.error) return state.error;
-    if (branchError) return branchError;
-    const error = validateReport(
-      draft,
-      eligibleBranchNames(branchRecords, draft.week),
-      allReports
-    );
-    if (error) return error;
-    const report = {
-      id: crypto.randomUUID(),
-      branch: draft.branch,
-      manager: draft.manager.trim(),
-      week: draft.week,
-      cardCents: toCents(draft.card),
-      cashCents: toCents(draft.cash),
-      notes: draft.notes.trim(),
-      savedAt: new Date().toISOString(),
-    };
-    const reports = [report, ...state.reports];
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(reports));
-    } catch {
-      return "The report could not be saved. Check browser storage and try again.";
-    }
-    setState({ reports, error: "" });
-    setShowForm(false);
+  async function saveReport(report) {
+    await database.refresh();
     setSelectedId(report.id);
     setBranch("all");
     setWeek(report.week);
-    setNotice(
-      "Sales report saved in this browser. It has not been sent to the company."
-    );
-    return "";
+    setNotice("Daily sales updated in the company database.");
   }
   const field =
     "rounded-xl border border-gray-200 bg-lightPrimary px-3 py-2 text-sm text-navy-700 dark:border-white/10 dark:bg-navy-900 dark:text-white";
-  if(user?.role==='Branch Manager')return <div className="mt-4 space-y-5 text-navy-700 dark:text-white"><h1 className="text-xl font-bold">Submit weekly sales report</h1><p className="text-sm">Enter card and cash sales for your branch. Saved company reports are available to admins.</p>{(branchError||state.error)&&<p role="alert" className="text-red-600">{branchError||state.error}</p>}{notice&&<p role="status">{notice}</p>}<SalesReportForm key={state.reports.length} branchRecords={branchRecords} onSave={saveReport} onCancel={()=>setNotice('Report entry cancelled.')} /></div>;
+  if(user?.role==='Branch Manager')return <div className="mt-4 space-y-5 text-navy-700 dark:text-white"><h1 className="text-xl font-bold">Submit weekly sales report</h1><p className="text-sm">Enter and edit daily card and cash sales for your branch. Select a week to reopen its saved figures.</p>{(branchError||state.error)&&<p role="alert" className="text-red-600">{branchError||state.error}</p>}{notice&&<p role="status">{notice}</p>}<SalesReportForm branchRecords={branchRecords} onSave={saveReport} onCancel={()=>setNotice('Report entry cancelled.')} /></div>;
   return (
     <div className="mt-3 space-y-5 text-navy-700 dark:text-white">
       {branchError && (
@@ -109,6 +64,7 @@ export default function WeeklySalesReports() {
           <button
             type="button"
             onClick={() => {
+              setEditingReport(null);
               setShowForm(true);
               setNotice("");
             }}
@@ -119,15 +75,13 @@ export default function WeeklySalesReports() {
         )}
       </div>
       <p className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-700 dark:border-white/10 dark:bg-navy-800 dark:text-gray-300">
-        Reports save in this browser only. Company-wide submission and manager
-        accounts across devices are not connected yet.
+        Sales reports are saved in the company database and totals are available to admins.
       </p>
       {state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-300">
           {state.error}
         </p>
       )}
-      {imported.error && <p role="alert" className="text-red-600">{imported.error}</p>}
       {notice && (
         <p
           role="status"
@@ -206,6 +160,8 @@ export default function WeeklySalesReports() {
       </div>
       {showForm && canManage && (
         <SalesReportForm
+          key={editingReport?.id || "new"}
+          initialReport={editingReport}
           branchRecords={branchRecords}
           onSave={saveReport}
           onCancel={() => setShowForm(false)}
@@ -231,7 +187,7 @@ export default function WeeklySalesReports() {
           </div>
         ) : (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[750px] text-sm">
+            <table className="portal-stacked-table w-full min-w-[750px] text-sm">
               <caption className="sr-only">
                 Card and cash sales by branch and week in GBP
               </caption>
@@ -262,19 +218,19 @@ export default function WeeklySalesReports() {
                     key={report.id}
                     className="border-b border-gray-100 dark:border-white/10"
                   >
-                    <td className="px-2 py-4 font-medium">{report.branch}</td>
-                    <td className="px-2 py-4">{report.week}</td>
-                    <td className="px-2 py-4">{report.manager}</td>
-                    <td className="px-2 py-4">
+                    <td data-label="Branch" className="px-2 py-4 font-medium">{report.branch}</td>
+                    <td data-label="Week" className="px-2 py-4">{report.week}</td>
+                    <td data-label="Manager" className="px-2 py-4">{report.manager}</td>
+                    <td data-label="Card" className="px-2 py-4">
                       {formatMoney(report.cardCents)}
                     </td>
-                    <td className="px-2 py-4">
+                    <td data-label="Cash" className="px-2 py-4">
                       {formatMoney(report.cashCents)}
                     </td>
-                    <td className="px-2 py-4 font-bold">
+                    <td data-label="Total" className="px-2 py-4 font-bold">
                       {formatMoney(report.cardCents + report.cashCents)}
                     </td>
-                    <td className="px-2 py-4">
+                    <td data-label="Report" className="px-2 py-4">
                       <button
                         type="button"
                         onClick={() => setSelectedId(report.id)}
@@ -292,9 +248,9 @@ export default function WeeklySalesReports() {
                   <th scope="row" colSpan={3} className="px-2 py-4 text-start">
                     Filtered totals
                   </th>
-                  <td className="px-2 py-4">{formatMoney(summary.card)}</td>
-                  <td className="px-2 py-4">{formatMoney(summary.cash)}</td>
-                  <td className="px-2 py-4">{formatMoney(summary.total)}</td>
+                  <td data-label="Card" className="px-2 py-4">{formatMoney(summary.card)}</td>
+                  <td data-label="Cash" className="px-2 py-4">{formatMoney(summary.cash)}</td>
+                  <td data-label="Total" className="px-2 py-4">{formatMoney(summary.total)}</td>
                   <td />
                 </tr>
               </tfoot>
@@ -318,6 +274,8 @@ export default function WeeklySalesReports() {
             {selected.branch} · Week beginning {selected.week} ·{" "}
             {selected.manager}
           </p>
+          {canManage && <button type="button" onClick={() => { setEditingReport(selected); setShowForm(true); }} className="mt-4 rounded-xl bg-brand-500 px-4 py-2 text-sm text-white">Edit daily sales</button>}
+          {selected.daily && <div className="mt-5"><DailySalesTable rows={dailyRows(selected)} readOnly /></div>}
           <dl className="mt-5 grid gap-4 md:grid-cols-3">
             {[
               ["Card sales", selected.cardCents],
@@ -338,7 +296,7 @@ export default function WeeklySalesReports() {
             </p>
           )}
           <p className="mt-4 text-xs text-gray-700 dark:text-gray-300">
-            Saved locally on{" "}
+            Saved on{" "}
             {new Date(selected.savedAt).toLocaleString("en-GB")}
           </p>
         </Card>

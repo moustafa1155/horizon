@@ -3,6 +3,7 @@ export const FINANCIAL_FIELDS = [
   ["expensesCents", "Expenses"],
   ["goodsCents", "Goods"],
   ["rentCents", "Rent"],
+  ["costCents", "Cost"],
   ["profitLossCents", "Profit and Loss"],
 ];
 export const emptyFinancialValues = () =>
@@ -24,6 +25,7 @@ export function validFinancialValues(values) {
     !Array.isArray(values) &&
     FINANCIAL_FIELDS.every(
       ([key]) =>
+        (key === "costCents" && values[key] === undefined) ||
         values[key] === null ||
         (Number.isSafeInteger(values[key]) &&
           Math.abs(values[key]) <= 100000000000 &&
@@ -51,3 +53,21 @@ export function amountToCents(value, negative = false) {
 }
 export const amountInputValue = (value) =>
   value === null || value === undefined ? "" : (value / 100).toFixed(2);
+
+export const FINANCIAL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+export const emptyFinancialDays = () => FINANCIAL_DAYS.map((_, day) => ({ day, ...emptyFinancialValues() }));
+export function prepareFinancialDays(rows) {
+  if (!Array.isArray(rows) || rows.length !== 7) throw Error("Enter one financial row for each day of the week.");
+  const values = emptyFinancialValues();
+  const daily = rows.map((row, day) => {
+    if (!row || row.day !== day || !validFinancialValues(row)) throw Error("Enter valid daily figures. Only profit and loss may be negative.");
+    const result = { day };
+    for (const [key] of FINANCIAL_FIELDS) {
+      result[key] = row[key] ?? null;
+      if (result[key] !== null) values[key] = (values[key] ?? 0) + result[key];
+    }
+    return result;
+  });
+  if (!validFinancialValues(values)) throw Error("Weekly totals must each be within £1 billion.");
+  return { daily, values };
+}

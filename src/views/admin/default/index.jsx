@@ -1,4 +1,3 @@
-import useImportedSales, { mergeSales } from "../../../hooks/useImportedSales";
 import WeekSelector from "components/weekSelector";
 import FinancialSummary from "./FinancialSummary";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -13,34 +12,28 @@ import {
 } from "react-icons/fi";
 import useEmployees from "../../../hooks/useEmployees";
 import useBranches from "../../../hooks/useBranches";
-import { currentWeek, loadOrders } from "../weeklyOrders/orderHelpers.mjs";
-import { loadStockChecks } from "../weeklyStockChecks/stockCheckHelpers.mjs";
+import { currentWeek } from "../weeklyOrders/orderHelpers.mjs";
 import {
-  loadReports,
   formatMoney,
 } from "../weeklySalesReports/salesHelpers.mjs";
 import { summarize } from "./dashboardHelpers.mjs";
 
-function readDashboard(can) {
-  const errors = [];
-  const read = (name, loader) => {
+async function readDashboard(can) {
+  const data = { orders: null, checks: null, reports: null, errors: [] };
+  await Promise.all([
+    ["orders", "weekly-orders", "/api/orders", "orders"],
+    ["checks", "weekly-stock-checks", "/api/stock-checks", "checks"],
+    ["reports", "weekly-sales-reports", "/api/sales-reports", "reports"],
+  ].map(async ([key, page, url, responseKey]) => {
+    if (!can(page)) return;
     try {
-      return loader(window.localStorage);
-    } catch {
-      errors.push(`${name} could not be loaded from browser storage.`);
-      return null;
-    }
-  };
-  return {
-    orders: can("weekly-orders") ? read("Weekly orders", loadOrders) : null,
-    checks: can("weekly-stock-checks")
-      ? read("Stock checks", loadStockChecks)
-      : null,
-    reports: can("weekly-sales-reports")
-      ? read("Sales reports", loadReports)
-      : null,
-    errors,
-  };
+      const response = await fetch(url, { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw Error(result.error);
+      data[key] = result[responseKey];
+    } catch (error) { data.errors.push(error.message || "Company reporting could not be loaded."); }
+  }));
+  return data;
 }
 
 const quickLinks = [
@@ -94,7 +87,7 @@ function Status({ count, expected = true }) {
       {count === null
         ? "Unavailable"
         : count
-        ? "Recorded locally"
+        ? "Recorded"
         : expected
         ? "Missing"
         : "Not expected"}
@@ -104,23 +97,20 @@ function Status({ count, expected = true }) {
 
 export default function Dashboard() {
   const { can, user } = useAuth();
-  const imported = useImportedSales(user?.role === "Admin");
   const { records: employeeRecords, error: employeeError } = useEmployees();
   const employees = can("employees") ? employeeRecords : [];
   const { records: branchRecords, branchError } = useBranches();
   const branches = branchRecords.map((record) => record.name);
-  const [data, setData] = useState(() => readDashboard(can));
+  const [data, setData] = useState({ orders: [], checks: [], reports: [], errors: [] });
   const [branch, setBranch] = useState("all");
   const [week, setWeek] = useState(currentWeek);
   useEffect(() => {
-    const refresh = () => setData(readDashboard(can));
+    let active = true;
+    const refresh = async () => { const next = await readDashboard(can); if (active) setData(next); };
     refresh();
-    window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
-    return () => {
-      window.removeEventListener("storage", refresh);
-      window.removeEventListener("focus", refresh);
-    };
+    window.addEventListener("horizon:database-updated", refresh);
+    return () => { active = false; window.removeEventListener("focus", refresh); window.removeEventListener("horizon:database-updated", refresh); };
   }, [user]);
   const summary = useMemo(
     () =>
@@ -131,7 +121,7 @@ export default function Dashboard() {
         reports: can("weekly-sales-reports")
           ? data.reports === null
             ? null
-            : mergeSales(data.reports, imported.reports)
+            : data.reports
           : null,
         employees,
         branches,
@@ -139,7 +129,7 @@ export default function Dashboard() {
         branch,
         week,
       }),
-    [data, user, branchRecords, branch, week, employeeRecords, imported.reports]
+    [data, user, branchRecords, branch, week, employeeRecords]
   );
   const salesValue = (amount) =>
     amount === null
@@ -165,11 +155,6 @@ export default function Dashboard() {
   ];
   return (
     <div className="mt-3 space-y-5 text-navy-700 dark:text-white">
-      {imported.error && (
-        <p role="alert" className="text-red-600">
-          {imported.error}
-        </p>
-      )}
       {branchError && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-300">
           {branchError}
@@ -185,8 +170,7 @@ export default function Dashboard() {
         <button
           type="button"
           onClick={() => {
-            setData(readDashboard(can));
-            imported.refresh();
+            readDashboard(can).then(setData);
           }}
           className="flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-medium dark:bg-navy-800"
         >
@@ -224,7 +208,7 @@ export default function Dashboard() {
           week beginning {week}.
         </p>
       </Card>
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,512px)_minmax(0,1fr)]">
+      <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_280px]">
         {user?.role === "Admin" && (
           <FinancialSummary
             key={branch}
@@ -233,7 +217,7 @@ export default function Dashboard() {
             week={week}
           />
         )}
-        <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2 2xl:grid-cols-1">
           {metrics
             .filter((metric) => can(metric[3]))
             .map(([label, value, hint, path]) => (
@@ -242,7 +226,7 @@ export default function Dashboard() {
                 extra={
                   "p-5 " +
                   (label === "Total sales"
-                    ? "sm:col-span-2 xl:col-span-1 2xl:col-span-2"
+                    ? "sm:col-span-2 2xl:col-span-1"
                     : "")
                 }
               >
@@ -261,8 +245,7 @@ export default function Dashboard() {
         </div>
       </div>
       <p className="text-xs text-gray-700 dark:text-gray-300">
-        The financial summary is saved in the company database. Other reporting
-        below includes records saved in this browser.
+        Financial summaries and weekly reporting are saved in the company database.
       </p>
       {data.errors.length > 0 && (
         <div

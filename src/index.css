@@ -27,3 +27,47 @@ input.defaultCheckbox::before {
 input:checked.defaultCheckbox::before { 
 	opacity: 1;
 }
+.portal-mobile-navigation { display: none; }
+
+@media (max-width: 767px) {
+  .portal-mobile-navigation { display: block; }
+  .portal-sidebar, .portal-footer, .portal-heading > button,
+  .portal-heading > div > div { display: none; }
+  .portal-main { margin-inline: 4px; padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .portal-heading { position: static; }
+  .portal-heading > div > p { font-size: 1.55rem; line-height: 1.25; }
+  .portal-layout :is(button, select, input:not([type="checkbox"]):not([type="radio"])) { min-height: 44px; }
+  .portal-layout :is(input, select, textarea) { max-width: 100%; font-size: 16px; }
+  .portal-layout dialog { max-height: 90dvh; overflow-y: auto; }
+  .portal-layout .overflow-x-auto { max-width: 100%; }
+  .portal-tabbar {
+    position: fixed; inset: auto 0 0; z-index: 45; display: flex;
+    justify-content: space-around; background: white; color: #283a23;
+    border-top: 1px solid #e5e8dc; padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+  .portal-tabbar :is(a, button) { display: grid; flex: 1; justify-items: center; align-content: center; min-height: 50px; gap: 4px; font-size: 13px; font-weight: 700; }
+  .portal-tabbar svg { font-size: 20px; color: #527007; }
+  .portal-sheet {
+    position: fixed; inset: auto 0 0; margin: 0 auto; width: 100%; max-width: 480px;
+    border-radius: 24px 24px 0 0; padding: 18px 20px calc(18px + env(safe-area-inset-bottom));
+    color: #283a23; background: white; box-shadow: 0 -8px 36px #283a2333;
+  }
+  .portal-sheet::backdrop { background: #16221770; }
+  .portal-sheet a { display: flex; align-items: center; min-height: 48px; gap: 12px; padding: 8px 12px; border-radius: 12px; }
+  .portal-sheet [aria-current="page"] { background: #edf3da; font-weight: 700; }
+  .portal-sheet button[aria-label] { display: grid; width: 44px; place-items: center; font-size: 20px; }
+  .dark .portal-tabbar, .dark .portal-sheet { background: #263721; color: white; }
+  .dark .portal-sheet [aria-current="page"] { background: #394430; }
+  .dark .portal-tabbar svg { color: #dde5cf; }
+
+  .portal-stacked-table, .portal-stacked-table :is(tbody, tfoot, tr) { display: block; width: 100%; min-width: 0; }
+  .portal-stacked-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .portal-stacked-table tr { padding: 8px 12px; }
+  .portal-stacked-table th[scope="row"] { display: block; padding: 6px 0; min-width: 0; text-align: left; }
+  .portal-stacked-table td[data-label] {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px;
+    align-items: center; padding: 6px 0; text-align: left; white-space: normal; overflow-wrap: anywhere;
+  }
+  .portal-stacked-table td[data-label]::before { content: attr(data-label); font-weight: 600; }
+  .portal-stacked-table input { min-width: 0; }
+}

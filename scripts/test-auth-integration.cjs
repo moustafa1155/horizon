@@ -191,9 +191,28 @@ async function main() {
       );
       return cookie;
     };
+    const catalogProducts = require("../src/data/orderProducts.json");
+    await db.collection("products").insertMany(catalogProducts.map(({ name, category }) => ({ name, category, removed: false })));
     const admin = await login("auth.admin"),
       manager = await login("auth.manager"),
       employeeCookie = await login("auth.employee");
+    const mobileLogin = username => request("/api/mobile/sign-in", {
+      method: "POST", body: { username, password },
+    });
+    check((await request("/api/mobile/staff")).status, 401, "mobile directory requires authentication");
+    check((await mobileLogin("auth.employee")).status, 403, "stock-only account cannot sign into staff directory");
+    const mobile = await mobileLogin("auth.manager");
+    check(mobile.status, 200, "manager can sign into mobile staff");
+    const mobileHeaders = { Authorization: "Bearer " + mobile.data.token };
+    const mobileStaff = await fetch(base + "/api/mobile/staff", { headers: mobileHeaders });
+    check(mobileStaff.status, 200, "mobile staff request succeeds");
+    const mobileDirectory = await mobileStaff.json();
+    check(mobileDirectory.employees.map(person => person.fullName), ["Auth fixture A"], "mobile directory is branch-scoped");
+    check("nationalInsuranceNumber" in mobileDirectory.employees[0], false, "mobile directory omits national insurance");
+    check((await request("/api/employees", { cookie: "__Host-horizon-session=" + mobile.data.token })).status, 401, "mobile token cannot authenticate web routes");
+    check((await fetch(base + "/api/mobile/staff", { method: "DELETE", headers: mobileHeaders })).status, 200, "mobile sign-out succeeds");
+    check((await fetch(base + "/api/mobile/staff", { headers: mobileHeaders })).status, 401, "revoked mobile token is rejected");
+
     check(
       (await request("/api/users", { cookie: admin })).data.users.length,
       3,
@@ -201,6 +220,15 @@ async function main() {
     );
 
     await db.collection("branches").updateOne({ _id: b1 }, { $set: { type: "" } });
+    check((await request("/api/products")).status, 401, "product list requires authentication");
+    for (const cookie of [admin, manager, employeeCookie]) {
+      const productResponse = await request("/api/products", { cookie });
+      check(productResponse.status, 200, "authorised role can load product dropdown");
+      check(productResponse.data.products.length, 154, "dropdown includes all supplied products");
+      const names = productResponse.data.products.map(product => product.name);
+      check(names, [...names].sort((a, b) => a.localeCompare(b, "en-GB", { sensitivity: "base", numeric: true })), "products sorted alphabetically across all categories");
+      check(productResponse.data.products.every(product => typeof product.name === "string" && typeof product.category === "string" && !("source" in product)), true, "product API exposes only dropdown fields");
+    }
     const stockDraft = { branch: "Auth test A", employee: "Spoofed name", week: "2026-11-02", items: [{ product: "Test product", quantity: 10 }], notes: "Test only" };
     check((await request("/api/stock-checks")).status, 401, "anonymous stock access denied");
     check((await request("/api/stock-checks", { cookie: manager })).status, 403, "manager stock access denied");
@@ -215,6 +243,104 @@ async function main() {
     await db.collection("weekly_stock_checks").insertOne({ branchId: b2.toString(), week: stockDraft.week, recordedAt: new Date().toISOString() });
     check((await request("/api/stock-checks", { cookie: employeeCookie })).data.checks.length, 1, "employee cannot read other branch stock");
     await db.collection("branches").updateOne({ _id: b1 }, { $set: { type: "permanent" } });
+    const newBranch = { name: "Temporary test branch", type: "temporary", startDate: "2026-11-01", endDate: "2026-12-01", removed: false };
+    check((await request("/api/branches", { cookie: manager, method: "POST", body: newBranch })).status, 403, "manager cannot create branches");
+    check((await request("/api/branches", { cookie: admin, method: "POST", origin: "https://evil.example", body: newBranch })).status, 403, "cross-site branch writes denied");
+    check((await request("/api/branches", { cookie: admin, method: "POST", body: { ...newBranch, endDate: "" } })).status, 400, "temporary branch needs dates on server");
+    check((await request("/api/branches", { cookie: admin, method: "POST", body: newBranch })).status, 201, "admin creates persistent branch");
+    check(await db.collection("branches").countDocuments({ name: newBranch.name }), 1, "branch creation persists in MongoDB");
+    check((await request("/api/branches", { cookie: admin, method: "POST", body: { ...newBranch, name: newBranch.name.toUpperCase() } })).status, 400, "duplicate branch name rejected");
+    let savedBranch = (await request("/api/branches", { cookie: admin })).data.branches.find(b => b.name === newBranch.name);
+    check((await request("/api/branches", { cookie: admin, method: "PUT", body: { ...savedBranch, removed: true } })).status, 200, "admin removes persistent branch");
+    check((await db.collection("branches").findOne({ name: newBranch.name })).removed, true, "branch removal stored in MongoDB");
+    check((await request("/api/branches", { cookie: admin, method: "PUT", body: savedBranch })).status, 409, "stale branch edit rejected");
+    savedBranch = (await request("/api/branches", { cookie: admin })).data.branches.find(b => b.name === newBranch.name);
+    check((await request("/api/branches", { cookie: admin, method: "PUT", body: { ...savedBranch, removed: false } })).status, 200, "admin restores persistent branch");
+    const orderDraft = { branch: "Auth test A", manager: "Spoofed manager", week: "2026-11-02", items: [{ product: "Test product", quantity: 12 }], notes: "Test only" };
+    check((await request("/api/orders")).status, 401, "anonymous order read denied");
+    check((await request("/api/orders", { cookie: employeeCookie, method: "POST", body: orderDraft })).status, 403, "employee order write denied");
+    check((await request("/api/orders", { cookie: manager, method: "POST", body: { ...orderDraft, branch: "Auth test B" } })).status, 403, "manager cannot order for another branch");
+    check((await request("/api/orders", { cookie: manager, method: "POST", body: { ...orderDraft, items: [{ product: "Test", quantity: 0 }] } })).status, 400, "server validates order quantities");
+    const orderResult = await request("/api/orders", { cookie: manager, method: "POST", body: orderDraft });
+    check(orderResult.status, 201, "manager creates shared order");
+    check(orderResult.data.order.manager, users[1].name, "order manager comes from signed-in account");
+    check((await request("/api/orders", { cookie: admin })).data.orders.length, 1, "admin sees submitted order");
+    check(await db.collection("weekly_orders").countDocuments({ week: orderDraft.week }), 1, "order stored in database");
+    check((await request("/api/orders", { cookie: manager, method: "POST", body: orderDraft })).status, 409, "duplicate weekly order denied");
+    await db.collection("weekly_orders").insertOne({ branchId: b2.toString(), branch: "Auth test B", week: orderDraft.week, items: [] });
+    check((await request("/api/orders", { cookie: manager })).data.orders.length, 1, "manager cannot read other branch orders");
+    const salesDraft = { branch: "Auth test A", manager: "Spoofed manager", week: "2026-11-02", card: "123.45", cash: "20.05", notes: "Test only" };
+    check((await request("/api/sales-reports", { cookie: manager })).status, 403, "manager cannot read sales history");
+    check((await request("/api/sales-reports", { cookie: employeeCookie, method: "POST", body: salesDraft })).status, 403, "employee cannot submit sales");
+    check((await request("/api/sales-reports", { cookie: manager, method: "POST", body: { ...salesDraft, branch: "Auth test B" } })).status, 403, "manager cannot submit other branch sales");
+    check((await request("/api/sales-reports", { cookie: manager, method: "POST", body: { ...salesDraft, card: "-1" } })).status, 400, "negative sales rejected");
+    check((await request("/api/sales-reports", { cookie: manager, method: "POST", body: salesDraft })).status, 201, "manager submits sales to database");
+    const salesRecord = await db.collection("weekly_sales_reports").findOne({ week: salesDraft.week });
+    check(salesRecord.cardCents + salesRecord.cashCents, 14350, "sales stored with exact penny totals");
+    check((await request("/api/sales-reports", { cookie: admin })).data.reports.length, 1, "admin sees submitted sales");
+    check((await request("/api/imported-sales", { cookie: admin })).data.reports.length, 1, "dashboard sales endpoint includes new reports");
+    check((await request("/api/sales-reports", { cookie: manager, method: "POST", body: salesDraft })).status, 409, "duplicate weekly sales rejected");
+    const daily = Array.from({ length: 7 }, (_, day) => ({ day, card: "", cash: "" }));
+    daily[0].cost = "12.34"; daily[1].cost = "0";
+    daily[0].card = "100.10"; daily[0].cash = "20.05"; daily[1].card = "30.20";
+    const dailyBody = { branchId: b1.toString(), week: salesDraft.week, daily, notes: "Daily fixture", revision: 0 };
+    const dailyPath = "/api/sales-reports?" + new URLSearchParams({ branchId: b1.toString(), week: salesDraft.week });
+    check((await request(dailyPath, { cookie: manager })).status, 200, "manager can reopen a selected week for their branch");
+    check((await request("/api/sales-reports?" + new URLSearchParams({ branchId: b2.toString(), week: salesDraft.week }), { cookie: manager })).status, 403, "manager cannot load other branch daily figures");
+    check((await request("/api/sales-reports", { cookie: employeeCookie, method: "PUT", body: dailyBody })).status, 403, "employee daily sales changes denied");
+    check((await request("/api/sales-reports", { cookie: manager, method: "PUT", body: { ...dailyBody, branchId: b2.toString() } })).status, 403, "manager daily writes restricted to own branch");
+    check((await request("/api/sales-reports", { cookie: manager, method: "PUT", origin: "https://evil.example", body: dailyBody })).status, 403, "cross-site daily sales writes denied");
+    const dailySaved = await request("/api/sales-reports", { cookie: manager, method: "PUT", body: dailyBody });
+    check(dailySaved.status, 200, "daily sales update existing weekly report");
+    check(dailySaved.data.report.cardCents, 13030, "daily card total calculated on server");
+    check(dailySaved.data.report.cashCents, 2005, "daily cash total calculated on server");
+    check(dailySaved.data.report.daily[2].cardCents, null, "unentered days remain empty in database");
+    check(await db.collection("weekly_sales_reports").countDocuments({ week: salesDraft.week }), 1, "daily save does not duplicate weekly report");
+    const editedDaily = structuredClone(daily); editedDaily[0].card = "110.10";
+    check((await request("/api/sales-reports", { cookie: manager, method: "PUT", body: { ...dailyBody, daily: editedDaily, revision: 1 } })).status, 200, "manager can edit and save daily report again");
+    check((await request(dailyPath, { cookie: manager })).data.report.cardCents, 14030, "edited daily amounts survive reload");
+    check((await request("/api/sales-reports", { cookie: manager, method: "PUT", body: dailyBody })).status, 409, "stale daily save cannot overwrite newer changes");
+    const badDaily = structuredClone(daily); badDaily[0].cash = "-1";
+    check((await request("/api/sales-reports", { cookie: manager, method: "PUT", body: { ...dailyBody, daily: badDaily, revision: 2 } })).status, 400, "negative daily amounts rejected");
+    const newWeek = "2026-11-09";
+    check((await request("/api/sales-reports", { cookie: manager, method: "PUT", body: { ...dailyBody, week: newWeek, revision: 0 } })).status, 200, "first daily save creates a new weekly report");
+    check((await request("/api/sales-reports", { cookie: manager })).status, 403, "daily editing does not expose company sales history to manager");
+    check((await request("/api/sales-reports", { cookie: admin })).data.reports.find(report => report.week === salesDraft.week).cardCents, 14030, "admin totals reflect latest daily edits");
+    const costReport = (await request(dailyPath, { cookie: manager })).data.report;
+    check(costReport.costCents, 1234, "daily costs persist and total separately from sales");
+    check(costReport.daily[1].costCents, 0, "zero daily cost preserved");
+    check(costReport.daily[2].costCents, null, "blank daily cost stays empty");
+    const revisedCosts = structuredClone(editedDaily); revisedCosts[0].cost = "20.01";
+    check((await request("/api/sales-reports", { cookie: manager, method: "PUT", body: { ...dailyBody, daily: revisedCosts, revision: 2 } })).status, 200, "daily costs can be edited and saved again");
+    const updatedCosts = (await request(dailyPath, { cookie: admin })).data.report;
+    check(updatedCosts.costCents, 2001, "updated cost survives reload for admin");
+    check(updatedCosts.cardCents + updatedCosts.cashCents, 16035, "cost edits do not alter sales totals");
+    const timetable = { employeeId: inserted.insertedIds[0].toString(), week: "2026-11-02", revision: 0, rows: [{ id: "test-shift", day: 0, start: "09:00", end: "17:00", breakMinutes: 30 }] };
+    check((await request("/api/timetables", { cookie: employeeCookie })).status, 403, "stock-only employee cannot read timetables");
+    check((await request("/api/timetables", { cookie: manager, method: "PUT", body: { ...timetable, employeeId: inserted.insertedIds[1].toString() } })).status, 404, "manager cannot edit other branch timetable");
+    check((await request("/api/timetables", { cookie: manager, method: "PUT", body: { ...timetable, week: "2026-02-30" } })).status, 400, "invalid timetable date rejected");
+    check((await request("/api/timetables", { cookie: manager, method: "PUT", body: { ...timetable, rows: [...timetable.rows, { ...timetable.rows[0], id: "overlap" }] } })).status, 400, "overlapping shifts rejected on server");
+    check((await request("/api/timetables", { cookie: manager, method: "PUT", body: timetable })).status, 200, "manager saves assigned staff timetable");
+    check((await request("/api/timetables", { cookie: admin })).data.timetables[0].rows.length, 1, "admin sees saved shifts");
+    check((await request("/api/timetables", { cookie: manager, method: "PUT", body: timetable })).status, 409, "stale timetable changes rejected");
+    check((await request("/api/timetables", { cookie: manager, method: "PUT", body: { ...timetable, revision: 1, rows: [{ ...timetable.rows[0], start: "10:00" }] } })).status, 200, "manager edits saved shift");
+    check((await request("/api/timetables", { cookie: manager, method: "PUT", body: { ...timetable, revision: 2, rows: [] } })).status, 200, "manager removes all weekly shifts");
+    check((await db.collection("weekly_staff_timetables").findOne({ employeeId: timetable.employeeId })).rows.length, 0, "empty timetable remains empty in database");
+    const managerStaff = { fullName: "Manager-created fixture", phoneNumber: "00000000000", nationalInsuranceNumber: "MANAGER-NEW", email: "manager-new@example.invalid" };
+    check((await request("/api/employees", { cookie: manager, method: "POST", body: { ...managerStaff, branchId: b2.toString() } })).status, 403, "manager cannot add staff to another branch");
+    const managerAdded = await request("/api/employees", { cookie: manager, method: "POST", body: managerStaff });
+    check(managerAdded.status, 201, "manager adds staff without choosing a branch");
+    check(managerAdded.data.employee.branchId, b1.toString(), "manager staff automatically assigned to their branch");
+    await request("/api/employees", { cookie: admin, method: "DELETE", body: { id: managerAdded.data.employee.id, confirmed: true } });
+    const managerLogin = await request("/api/employees", { cookie: manager, method: "POST", body: { ...managerStaff, account: { username: "manager.created", password }, role: "Admin" } });
+    check(managerLogin.status, 201, "manager can assign employee login when adding own staff");
+    const managerLoginUser = await db.collection("portal_users").findOne({ username: "manager.created" });
+    check(managerLoginUser.role, "Employee", "manager cannot create privileged account via staff form");
+    check(managerLoginUser.branchId, b1.toString(), "manager-created login restricted to assigned branch");
+    await request("/api/employees", { cookie: admin, method: "DELETE", body: { id: managerLogin.data.employee.id, confirmed: true } });
+    await db.collection("portal_users").updateOne({ _id: users[1]._id }, { $set: { branchId: "" } });
+    check((await request("/api/employees", { cookie: manager, method: "POST", body: managerStaff })).status, 403, "unassigned manager cannot add staff");
+    await db.collection("portal_users").updateOne({ _id: users[1]._id }, { $set: { branchId: b1.toString() } });
     const accountEmployee = {
       fullName: "Linked account fixture", phoneNumber: "00000000000",
       nationalInsuranceNumber: "TEST-LINKED", email: "linked@example.invalid",
@@ -415,6 +541,30 @@ async function main() {
       404,
       "unknown branch financial access rejected"
     );
+    const dailyFinanceWeek = "2026-11-16";
+    await db.collection("weekly_financial_summaries").insertOne({ branchId: b1.toString(), week: dailyFinanceWeek, totalSaleCents: 77777, expensesCents: null, goodsCents: null, rentCents: 500, profitLossCents: null, revision: 1, source: { file: "Test only workbook", sheet: "Test week" } });
+    const financialDays = Array.from({ length: 7 }, (_, day) => ({ day, totalSaleCents: null, expensesCents: null, goodsCents: null, rentCents: null, costCents: null, profitLossCents: null }));
+    financialDays[0].totalSaleCents = 10000; financialDays[1].totalSaleCents = 2000;
+    financialDays[0].costCents = 250; financialDays[1].costCents = 0;
+    financialDays[0].profitLossCents = -100;
+    const dailyFinanceBody = { branchId: b1.toString(), week: dailyFinanceWeek, revision: 1, daily: financialDays, values: { ...figures, totalSaleCents: 999999 } };
+    check((await request("/api/financial-summaries", { cookie: manager, method: "PUT", body: dailyFinanceBody })).status, 403, "manager cannot edit dashboard daily finances");
+    const dailyFinanceSaved = await request("/api/financial-summaries", { cookie: admin, method: "PUT", body: dailyFinanceBody });
+    check(dailyFinanceSaved.status, 200, "admin saves daily financial breakdown");
+    check(dailyFinanceSaved.data.summary.totalSaleCents, 12000, "weekly finance totals calculated from daily inputs on server");
+    check(dailyFinanceSaved.data.summary.costCents, 250, "weekly financial cost total saved");
+    check(dailyFinanceSaved.data.summary.daily[1].costCents, 0, "daily zero cost remains zero");
+    check(dailyFinanceSaved.data.summary.daily[2].costCents, null, "unentered financial days remain blank");
+    check(dailyFinanceSaved.data.summary.profitLossCents, -100, "daily losses are preserved");
+    const financeStored = await db.collection("weekly_financial_summaries").findOne({ branchId: b1.toString(), week: dailyFinanceWeek });
+    check(financeStored.originalWeeklyValues.totalSaleCents, 77777, "original weekly imported totals preserved without allocating across days");
+    check(financeStored.source.sheet, "Test week", "financial source provenance preserved");
+    const financeReload = await request("/api/financial-summaries?" + new URLSearchParams({ branchId: b1.toString(), week: dailyFinanceWeek }), { cookie: admin });
+    check(financeReload.data.summary.daily.length, 7, "daily financial figures survive database reload");
+    check((await request("/api/financial-summaries", { cookie: admin, method: "PUT", body: dailyFinanceBody })).status, 409, "stale daily financial changes rejected");
+    const badFinancialDays = structuredClone(financialDays); badFinancialDays[0].costCents = -1;
+    check((await request("/api/financial-summaries", { cookie: admin, method: "PUT", body: { ...dailyFinanceBody, revision: 2, daily: badFinancialDays } })).status, 400, "negative daily finance costs rejected");
+    check((await request("/api/financial-summaries", { cookie: admin, method: "PUT", body: { ...dailyFinanceBody, revision: 2, daily: financialDays.map(row => Object.fromEntries(Object.keys(row).map(key => [key, key === "day" ? row.day : null]))) } })).status, 200, "admin can clear daily finances back to empty");
     const sharp = require("sharp");
     const photoBytes = await sharp({
       create: { width: 400, height: 300, channels: 3, background: "#668800" },

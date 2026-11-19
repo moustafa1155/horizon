@@ -7,6 +7,8 @@ export default function EmployeeForm({
   readOnly,
   employee,
   allowAssignment = false,
+  allowLogin = false,
+  assignedBranchName = "",
 }) {
   const { records: branches } = useBranches();
   const dialog = useRef(null);
@@ -18,10 +20,11 @@ export default function EmployeeForm({
     email: employee?.email || "",
   });
   const [createAccount, setCreateAccount] = useState(false);
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(employee?.username || "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [accountNotice, setAccountNotice] = useState("");
   useEffect(() => {
     dialog.current.showModal();
     return () => dialog.current?.close();
@@ -111,6 +114,7 @@ export default function EmployeeForm({
               ))}
             </tbody>
           </table>
+          {!allowAssignment && assignedBranchName && <p className="mt-4 text-sm">Assigned branch: <strong>{assignedBranchName}</strong></p>}
           {allowAssignment && (
             <label className="mt-4 block text-sm">
               Assigned branch
@@ -132,7 +136,33 @@ export default function EmployeeForm({
               </select>
             </label>
           )}
-          {!employee && allowAssignment && (
+          {employee?.username && (
+            <div className="mt-5 space-y-3 rounded-xl border border-gray-200 p-4">
+              <label className="block text-sm">Username
+                <input value={username} onChange={event => setUsername(event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-lightPrimary p-3 dark:bg-navy-900" />
+              </label>
+              <label className="block text-sm">New password
+                <input type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-lightPrimary p-3 dark:bg-navy-900" />
+              </label>
+              <p className="text-xs">Leave the password empty to keep it. New passwords need 12–128 characters.</p>
+              <button type="button" disabled={readOnly || pending} className="rounded-lg bg-brand-500 px-4 py-2 text-white" onClick={async () => {
+                setPending(true); setError(""); setAccountNotice("");
+                try {
+                  const response = await fetch("/api/employees", {
+                    method: "PATCH", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ id: employee.id, username, password }),
+                  });
+                  const data = await response.json();
+                  if (!response.ok) throw Error(data.error);
+                  setPassword(""); setAccountNotice("Login details updated.");
+                  window.dispatchEvent(new Event("horizon:employees-updated"));
+                } catch (error) { setError(error.message || "Login details could not be updated."); }
+                finally { setPending(false); }
+              }}>Save login details</button>
+              {accountNotice && <p role="status" className="text-sm">{accountNotice}</p>}
+            </div>
+          )}
+          {!employee && allowLogin && (
             <div className="mt-5 rounded-xl border border-gray-200 p-4 dark:border-white/10">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={createAccount} onChange={(e) => setCreateAccount(e.target.checked)} />
@@ -140,7 +170,7 @@ export default function EmployeeForm({
               </label>
               {createAccount && (
                 <div className="mt-4 space-y-4">
-                  <p className="text-sm">This account can access stock checking only. Select an assigned branch above.</p>
+                  <p className="text-sm">This account can access stock checking only. {allowAssignment ? "Select an assigned branch above." : "It will be assigned to your branch."}</p>
                   <label className="block text-sm">Username
                     <input required autoComplete="off" minLength={3} maxLength={32} pattern="[a-zA-Z0-9][a-zA-Z0-9._-]{2,31}" value={username} onChange={(e) => setUsername(e.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-lightPrimary p-3 dark:bg-navy-900" />
                   </label>

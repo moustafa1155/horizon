@@ -1,169 +1,87 @@
-import WeekSelector from "components/weekSelector";
-import { eligibleBranchNames } from "../../../data/branches.mjs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Card from "components/card";
+import WeekSelector from "components/weekSelector";
 import { currentWeek } from "../weeklyOrders/orderHelpers.mjs";
-import { toCents, formatMoney } from "./salesHelpers.mjs";
-
-const field =
-  "mt-2 w-full rounded-xl border border-gray-200 bg-lightPrimary p-3 text-sm text-navy-700 outline-none focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-navy-900 dark:text-white";
-
-export default function SalesReportForm({ branchRecords, onSave, onCancel }) {
-  const [draft, setDraft] = useState({
-    branch: "",
-    manager: "",
-    week: currentWeek(),
-    card: "",
-    cash: "",
-    notes: "",
-  });
+import { stockCheckBranchNames } from "../weeklyStockChecks/stockCheckHelpers.mjs";
+import { prepareDailySales } from "../../../data/dailySales.mjs";
+import { saveDatabaseRecord } from "../../../hooks/useDatabaseRecords";
+import DailySalesTable, { dailyRows } from "./DailySalesTable";
+const field = "rounded-xl border border-gray-200 bg-lightPrimary px-3 py-2 text-sm dark:border-white/10 dark:bg-navy-900";
+export default function SalesReportForm({ branchRecords, onSave, onCancel, initialReport }) {
+  const [branchId, setBranchId] = useState(() => initialReport?.branchId || branchRecords.find(branch => branch.name === initialReport?.branch)?.id || "");
+  const [week, setWeek] = useState(initialReport?.week || currentWeek());
+  const [rows, setRows] = useState(() => dailyRows());
+  const [notes, setNotes] = useState("");
+  const [report, setReport] = useState(null);
+  const [revision, setRevision] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [error, setError] = useState("");
-  const branches = eligibleBranchNames(branchRecords, draft.week);
-  const update = (key) => (event) =>
-    setDraft((current) => ({ ...current, [key]: event.target.value }));
-  const card = toCents(draft.card);
-  const cash = toCents(draft.cash);
-  return (
-    <Card extra="p-6">
-      <h2 className="text-xl font-bold">New weekly sales report</h2>
-      <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-        Record card and cash sales for the full week. Amounts are in GBP.
-      </p>
-      {!branches.length && (
-        <p className="mt-4 rounded-xl bg-lightPrimary p-3 text-sm text-gray-700 dark:bg-navy-900 dark:text-gray-300">
-          No branches are available for this week. Add a branch or choose a week
-          within a temporary branch's operating dates.
-        </p>
-      )}
-      <form
-        className="mt-5 space-y-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setError(onSave(draft));
-        }}
-      >
-        <div className="grid gap-4 md:grid-cols-3">
-          <div>
-            <label htmlFor="sales-branch" className="text-sm font-medium">
-              Branch
-            </label>
-            <select
-              id="sales-branch"
-              required
-              disabled={!branches.length}
-              value={draft.branch}
-              onChange={update("branch")}
-              className={field}
-            >
-              <option value="">
-                {branches.length
-                  ? "Select branch"
-                  : "No branches available for this week"}
-              </option>
-              {branches.map((branch) => (
-                <option key={branch}>{branch}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="sales-manager" className="text-sm font-medium">
-              Branch manager
-            </label>
-            <input
-              id="sales-manager"
-              required
-              maxLength={120}
-              value={draft.manager}
-              onChange={update("manager")}
-              placeholder="Manager's name"
-              className={field}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-3 md:col-span-2">
-            <WeekSelector
-              value={draft.week}
-              onChange={(value) =>
-                setDraft((current) => ({ ...current, week: value }))
-              }
-              className={field}
-              labelPrefix="Sales report"
-            />
-          </div>
+  const [loadError, setLoadError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [reload, setReload] = useState(0);
+  const [loadedKey, setLoadedKey] = useState("");
+  const branches = branchRecords.filter(branch => stockCheckBranchNames([branch], week).length);
+  const selectionKey = branchId + "|" + week;
+  useEffect(() => {
+    if (branchRecords.length === 1 && !branchId) setBranchId(branchRecords[0].id);
+  }, [branchRecords, branchId]);
+  useEffect(() => {
+    if (!branchId) return;
+    let active = true;
+    setLoading(true); setLoadError(""); setError(""); setNotice("");
+    fetch("/api/sales-reports?" + new URLSearchParams({ branchId, week }), { cache: "no-store" }).then(async response => {
+      const data = await response.json();
+      if (!response.ok) throw Error(data.error || "Report could not be loaded.");
+      if (!active) return;
+      setReport(data.report); setRows(dailyRows(data.report)); setNotes(data.report?.notes || "");
+      setRevision(data.report?.revision || 0); setDirty(false); setLoadedKey(selectionKey);
+    }).catch(error => { if (active) setLoadError(error.message); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [branchId, week, reload]);
+  function changeSelection(setter, value) {
+    if (dirty && !window.confirm("Discard unsaved daily sales changes?")) return;
+    setter(value); setDirty(false);
+  }
+  async function submit(event) {
+    event.preventDefault();
+    if (pending || loading || loadError || loadedKey !== selectionKey) return;
+    try { prepareDailySales(rows); } catch (error) { setError(error.message); return; }
+    setPending(true); setError(""); setNotice("");
+    try {
+      const data = await saveDatabaseRecord("/api/sales-reports", { branchId, week, daily: rows, notes, revision }, "PUT");
+      setRows(dailyRows(data.report)); setRevision(data.report.revision); setReport(data.report); setDirty(false);
+      setNotice("Daily sales saved. You can edit the table and save again.");
+      await onSave(data.report);
+    } catch (error) { setError(error.message); }
+    finally { setPending(false); }
+  }
+  return <Card extra="p-6">
+    <h2 className="text-xl font-bold">Daily sales report</h2>
+    <p className="mt-2 text-sm">Enter card sales, cash sales and costs for each day. Blank days stay empty. Sales totals are card plus cash; costs are totalled separately.</p>
+    <form onSubmit={submit} className="mt-5 space-y-5">
+      <fieldset disabled={pending} className="space-y-5">
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm">Branch<select required value={branchId} onChange={event => changeSelection(setBranchId, event.target.value)} className={field}><option value="">Select branch</option>{branchRecords.filter(branch => !branch.removed).map(branch => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>
+          <WeekSelector value={week} onChange={value => changeSelection(setWeek, value)} className={field} labelPrefix="Daily sales" />
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            ["card", "Card sales (£)"],
-            ["cash", "Cash sales (£)"],
-          ].map(([key, label]) => (
-            <div key={key}>
-              <label htmlFor={`sales-${key}`} className="text-sm font-medium">
-                {label}
-              </label>
-              <input
-                id={`sales-${key}`}
-                type="number"
-                inputMode="decimal"
-                min="0"
-                max="1000000000"
-                step="0.01"
-                required
-                value={draft[key]}
-                onChange={update(key)}
-                placeholder="0.00"
-                className={field}
-              />
-            </div>
-          ))}
-          <div className="rounded-xl bg-brand-50 p-4 dark:bg-navy-700">
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              Total sales
-            </p>
-            <output
-              aria-live="polite"
-              className="mt-2 block text-2xl font-bold text-brand-500 dark:text-white"
-            >
-              {card !== null && cash !== null ? formatMoney(card + cash) : "—"}
-            </output>
-            <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
-              Card + cash
-            </p>
-          </div>
+        {loading && <p role="status">Loading saved sales…</p>}
+        {loadError && <p role="alert" className="text-red-600">{loadError}</p>}
+        {branchId && !branches.some(branch => branch.id === branchId) && <p className="text-sm text-orange-700">This branch was not operating during the selected week.</p>}
+        {report && !report.daily && <p className="text-sm text-orange-700">This report contains weekly totals only. Enter the daily figures to replace those totals; the weekly amount has not been split across days.</p>}
+        <fieldset disabled={loading || !!loadError || !branchId || loadedKey !== selectionKey} className="space-y-4">
+          <DailySalesTable rows={rows} onChange={(index, key, value) => { setRows(current => current.map((row, day) => day === index ? { ...row, [key]: value } : row)); setDirty(true); setNotice(""); }} />
+          <label className="block text-sm">Notes (optional)<textarea value={notes} maxLength={2000} rows={2} onChange={event => { setNotes(event.target.value); setDirty(true); }} className={field + " mt-2 w-full"} /></label>
+        </fieldset>
+        {notice && <p role="status" className="text-sm text-brand-600 dark:text-brand-200">{notice}</p>}
+        {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+        <div className="flex flex-wrap justify-end gap-3">
+          <button type="button" onClick={() => { if (!dirty || window.confirm("Discard unsaved daily sales changes?")) onCancel(); }} className="rounded-xl px-4 py-3">Close</button>
+          <button type="button" onClick={() => { if (!dirty || window.confirm("Discard unsaved changes and reload the saved report?")) setReload(value => value + 1); }} disabled={!branchId || loading} className="rounded-xl border border-gray-200 px-4 py-3">Reload saved report</button>
+          <button type="submit" disabled={!dirty || loading || !!loadError || !branches.some(branch => branch.id === branchId) || loadedKey !== selectionKey} className="rounded-xl bg-brand-500 px-5 py-3 font-bold text-white disabled:opacity-50">{pending ? "Saving…" : "Save sales report"}</button>
         </div>
-        <div>
-          <label htmlFor="sales-notes" className="text-sm font-medium">
-            Notes (optional)
-          </label>
-          <textarea
-            id="sales-notes"
-            rows={3}
-            maxLength={2000}
-            value={draft.notes}
-            onChange={update("notes")}
-            className={field}
-          />
-        </div>
-        {error && (
-          <p role="alert" className="text-sm text-red-600 dark:text-red-300">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl bg-lightPrimary px-5 py-3 text-sm dark:bg-navy-700"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!branches.length}
-            className="rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Save sales report
-          </button>
-        </div>
-      </form>
-    </Card>
-  );
+      </fieldset>
+    </form>
+  </Card>;
 }

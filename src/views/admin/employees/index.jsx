@@ -130,7 +130,7 @@ export default function Employees() {
           View employee contact details and add new employees.
         </p>
       </div>
-      {user?.role === "Admin" && (can("employees", "manage") || isPreview) && (
+      {["Admin", "Branch Manager"].includes(user?.role) && (can("employees", "manage") || isPreview) && (
         <button
           type="button"
           onClick={() => {
@@ -150,6 +150,8 @@ export default function Employees() {
       {adding && (
         <EmployeeForm
           allowAssignment={user?.role === "Admin"}
+          allowLogin={["Admin", "Branch Manager"].includes(user?.role)}
+          assignedBranchName={user?.role === "Branch Manager" ? branchRecords.find(branch => branch.id === user.branchId)?.name : ""}
           employee={editingEmployee}
           readOnly={
             !can("employees", "manage") &&

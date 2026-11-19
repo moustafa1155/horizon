@@ -53,7 +53,7 @@ export default function OrderDetailsDialog({ order, onClose }) {
             </p>
           )}
           <p className="mt-4 text-xs text-gray-700 dark:text-gray-300">
-            Saved locally on{" "}
+            Saved on{" "}
             {new Date(order.placedAt).toLocaleString("en-GB")}
           </p>
 

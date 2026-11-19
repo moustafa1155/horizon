@@ -122,7 +122,7 @@ export default function Users() {
           </p>
         ) : (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[750px] text-sm">
+            <table className="portal-stacked-table w-full min-w-[750px] text-sm">
               <caption className="sr-only">User roles and page access</caption>
               <thead>
                 <tr className="border-b border-gray-200 text-xs text-gray-700 dark:border-white/10 dark:text-gray-300">
@@ -148,14 +148,14 @@ export default function Users() {
                     <th scope="row" className="px-2 py-4 text-start">
                       <p>
                         {account.name}
-                        {account.id === user.id && " (you)"}
+
                       </p>
                       <p className="mt-1 text-xs font-normal text-gray-700 dark:text-gray-300">
                         {account.username}
                       </p>
                     </th>
-                    <td className="px-2 py-4">{account.role}</td>
-                    <td className="max-w-[300px] px-2 py-4 text-xs text-gray-700 dark:text-gray-300">
+                    <td data-label="Role" className="px-2 py-4">{account.role}</td>
+                    <td data-label="Branch" className="max-w-[300px] px-2 py-4 text-xs text-gray-700 dark:text-gray-300">
                       {account.removed
                         ? "Access disabled"
                         : PAGES.filter((page) => canAccess(account, page.key))
@@ -170,10 +170,10 @@ export default function Users() {
                             )
                             .join(", ") || "No page access"}
                     </td>
-                    <td className="px-2 py-4">
+                    <td data-label="Status" className="px-2 py-4">
                       {account.removed ? "Removed" : "Active"}
                     </td>
-                    <td className="px-2 py-4">
+                    <td data-label="Actions" className="px-2 py-4">
                       <div className="flex gap-3">
                         {account.removed ? (
                           <button

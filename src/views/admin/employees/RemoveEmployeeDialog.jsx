@@ -38,7 +38,7 @@ export default function RemoveEmployeeDialog({ employee, onRemove, onCancel }) {
       <p id="remove-employee-description" className="mt-4 text-sm leading-6">
         Are you sure you want to remove <strong>{employee.name}</strong>? Their
         staff details and any linked login account will be permanently deleted from the database. This cannot be undone.
-        Existing timetable records will be kept.
+        Their saved weekly timetables will also be deleted.
       </p>
       {error && (
         <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-300">

@@ -52,9 +52,15 @@ export async function GET(request) {
       .sort({ fullName: 1 })
       .limit(1000)
       .toArray();
+    const db = await authDatabase();
+    const accounts = await db.collection("portal_users").find(
+      { employeeId: { $in: records.map(record => record._id) }, removed: { $ne: true } },
+      { projection: { employeeId: 1, username: 1 } }
+    ).toArray();
+    const usernames = new Map(accounts.map(account => [account.employeeId.toString(), account.username]));
     return json({
       employees: records.map(({ _id, ...record }) =>
-        employeeSummary(record, _id.toString())
+        employeeSummary({ ...record, username: usernames.get(_id.toString()) || "" }, _id.toString())
       ),
     });
   } catch {
@@ -116,10 +122,15 @@ async function saveEmployee(request, editing) {
       record.branchId = body.branchId;
     }
     if (access.user.role === "Branch Manager") {
-      if (!editing) return json({ error: "Only admins can add staff." }, 403);
-      delete record.branchId;
+      if (editing) delete record.branchId;
+      else {
+        if (!access.user.branchId) return json({ error: "Ask an admin to assign your branch before adding employees." }, 403);
+        if (body.branchId !== undefined && body.branchId !== access.user.branchId)
+          return json({ error: "You can only add employees to your assigned branch." }, 403);
+        record.branchId = access.user.branchId;
+      }
     }
-    if (access.user.role === "Admin" && record.branchId) {
+    if (record.branchId) {
       const { getDatabase } = await import("lib/mongodb");
       const branch = await (await getDatabase())
         .collection("branches")
@@ -136,8 +147,8 @@ async function saveEmployee(request, editing) {
     }
     let credentials;
     if (body.account !== undefined) {
-      if (editing || access.user.role !== "Admin")
-        return json({ error: "Only admins can create accounts when adding employees." }, 403);
+      if (editing || !["Admin", "Branch Manager"].includes(access.user.role))
+        return json({ error: "Accounts can only be created when adding employees." }, 403);
       if (!body.account || typeof body.account.username !== "string" ||
           !USERNAME_PATTERN.test(body.account.username.trim()) ||
           typeof body.account.password !== "string" ||
@@ -182,8 +193,8 @@ async function saveEmployee(request, editing) {
         await session.withTransaction(async () => {
           const options = { session };
           await db.collection("portal_security").updateOne({ _id: "account-write" }, { $inc: { version: 1 } }, options);
-          const actor = await db.collection("portal_users").findOne({ _id: new ObjectId(access.user.id), role: "Admin", removed: { $ne: true } }, options);
-          if (!actor) { const error = new Error("Please sign in as an admin."); error.status = 403; throw error; }
+          const actor = await db.collection("portal_users").findOne({ _id: new ObjectId(access.user.id), role: { $in: ["Admin", "Branch Manager"] }, removed: { $ne: true } }, options);
+          if (!actor || (actor.role === "Branch Manager" && actor.branchId !== record.branchId)) { const error = new Error("You cannot add staff to this branch."); error.status = 403; throw error; }
           await db.collection("employees").insertOne({ _id: employeeId, ...record, createdAt: now, updatedAt: now }, options);
           await db.collection("portal_users").insertOne({
             name: record.fullName, username: body.account.username.trim().toLowerCase(),
@@ -245,6 +256,7 @@ export async function DELETE(request) {
         const employeeId = new ObjectId(body.id);
         result = await db.collection("employees").deleteOne({ _id: employeeId }, options);
         if (result.deletedCount) {
+          await db.collection("weekly_staff_timetables").deleteMany({ employeeId: body.id }, options);
           const accounts = await db.collection("portal_users").find({ employeeId }, options).toArray();
           for (const account of accounts) {
             await db.collection("portal_sessions").deleteMany({ userId: account._id }, options);
@@ -265,4 +277,34 @@ export async function DELETE(request) {
       503
     );
   }
+}
+
+export async function PATCH(request) {
+  const access = await authorize(request, "employees", "manage");
+  if (access.response) return access.response;
+  let body;
+  try { body = await readSmallJson(request, 2048); }
+  catch { return json({ error: "Invalid password request." }, 400); }
+  if (!/^[a-f0-9]{24}$/i.test(body?.id || "") ||
+      typeof body.password !== "string" ||
+      (body.password !== "" && body.password.length < 12) || body.password.length > 128 ||
+      (body.username !== undefined && (typeof body.username !== "string" || !USERNAME_PATTERN.test(body.username.trim()))))
+    return json({ error: "Enter a password of 12–128 characters." }, 400);
+  try {
+    const employees = await employeeCollection();
+    const employee = await employees.findOne({
+      _id: new ObjectId(body.id), ...branchFilter(access.user), removed: { $ne: true },
+    });
+    if (!employee) return json({ error: "Employee is not available." }, 404);
+    const db = await authDatabase();
+    const credentials = body.password ? await hashPassword(body.password) : null;
+    const account = await db.collection("portal_users").findOneAndUpdate(
+      { employeeId: employee._id, role: "Employee", removed: { $ne: true } },
+      { $set: { ...(credentials ? { credentials } : {}), ...(body.username !== undefined ? { username: body.username.trim().toLowerCase() } : {}), updatedAt: new Date() }, $inc: { authVersion: 1 } },
+      { returnDocument: "after", projection: { _id: 1 } }
+    );
+    if (!account) return json({ error: "This employee has no active employee account." }, 404);
+    await db.collection("portal_sessions").deleteMany({ userId: account._id });
+    return json({ ok: true });
+  } catch (error) { return json({ error: error.code === 11000 ? "This username already exists." : "Login details could not be changed." }, error.code === 11000 ? 409 : 503); }
 }

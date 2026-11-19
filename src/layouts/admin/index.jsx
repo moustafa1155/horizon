@@ -6,6 +6,7 @@ import Navbar from "components/navbar";
 import Sidebar from "components/sidebar";
 import Footer from "components/footer/Footer";
 import routes from "routes.jsx";
+import MobileNavigation from "./MobileNavigation";
 
 export default function Admin(props) {
   const { firstPage, isPreview, signOut, user } = useAuth();
@@ -74,7 +75,7 @@ export default function Admin(props) {
   );
   document.documentElement.dir = "ltr";
   return (
-    <div className="flex h-full w-full">
+    <div className="portal-layout flex h-full w-full">
       <Sidebar
         open={open}
         collapsed={collapsed}
@@ -82,10 +83,10 @@ export default function Admin(props) {
         onClose={() => setOpen(false)}
       />
       {/* Navbar & Main Content */}
-      <div className="h-full w-full bg-lightPrimary dark:!bg-navy-900">
+      <div className="h-full w-full min-w-0 bg-lightPrimary dark:!bg-navy-900">
         {/* Main Content */}
         <main
-          className={`mx-[12px] h-full flex-none transition-all md:pr-2 ${
+          className={`portal-main mx-[12px] h-full flex-none transition-all md:pr-2 ${
             collapsed ? "xl:ml-[96px]" : "xl:ml-[313px]"
           }`}
         >
@@ -130,12 +131,13 @@ export default function Admin(props) {
                 </PageAccess>
               )}
             </div>
-            <div className="p-3">
+            <div className="portal-footer p-3">
               <Footer />
             </div>
           </div>
         </main>
       </div>
+      <MobileNavigation pathname={location.pathname} />
     </div>
   );
 }

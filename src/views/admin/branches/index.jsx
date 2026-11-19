@@ -32,6 +32,7 @@ export default function Branches() {
   const [showRemoved, setShowRemoved] = useState(false);
   const [type, setType] = useState("all");
   const [query, setQuery] = useState("");
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const activeRecords = records.filter((record) => !record.removed);
@@ -51,9 +52,9 @@ export default function Branches() {
     setNotice("");
     setShowForm(true);
   }
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    if (!canManage) return;
+    if (!canManage || pending) return;
     const validation = validateBranch(draft, records, editingId);
     if (validation) {
       setError(validation);
@@ -67,11 +68,13 @@ export default function Branches() {
       endDate: draft.endDate,
       removed: false,
     };
-    const result = saveBranches(
+    setPending(true);
+    const result = await saveBranches(
       editingId
         ? records.map((branch) => (branch.id === editingId ? record : branch))
         : [...records, record]
     );
+    setPending(false);
     if (result) {
       setError(result);
       return;
@@ -83,15 +86,17 @@ export default function Branches() {
         : "Branch added and available across the company pages."
     );
   }
-  function toggleRemoved(record) {
-    if (!canManage) return;
-    const result = saveBranches(
+  async function toggleRemoved(record) {
+    if (!canManage || pending) return;
+    setPending(true);
+    const result = await saveBranches(
       records.map((branch) =>
         branch.id === record.id
           ? { ...branch, removed: !branch.removed }
           : branch
       )
     );
+    setPending(false);
     setError(result);
     if (!result)
       setNotice(
@@ -110,7 +115,7 @@ export default function Branches() {
         {(canManage || isPreview) && (
           <button
             type="button"
-            disabled={!!branchError}
+            disabled={pending || !!branchError}
             onClick={() => openForm()}
             className="rounded-xl bg-brand-500 px-5 py-3 text-sm font-bold text-white hover:bg-brand-600 disabled:opacity-50"
           >
@@ -119,7 +124,7 @@ export default function Branches() {
         )}
       </div>
       <p className="text-xs text-gray-700 dark:text-gray-300">
-        Branches are saved in this browser and shared with the other pages. Only
+        Branches are saved in the company database and shared across devices. Only
         users with Manage Branches permission can save changes.
       </p>
       {(branchError || error) && (
@@ -319,7 +324,7 @@ export default function Branches() {
           </div>
         ) : (
           <div className="mt-5 overflow-x-auto">
-            <table className="w-full min-w-[750px] text-sm">
+            <table className="portal-stacked-table w-full min-w-[750px] text-sm">
               <caption className="sr-only">
                 Permanent and temporary branches with operating dates
               </caption>
@@ -352,15 +357,15 @@ export default function Branches() {
                     <th scope="row" className="px-2 py-4 text-start">
                       {record.name}
                     </th>
-                    <td className="px-2 py-4 capitalize">{record.type || "Not specified"}</td>
-                    <td className="px-2 py-4">
+                    <td data-label="Type" className="px-2 py-4 capitalize">{record.type || "Not specified"}</td>
+                    <td data-label="Start date" className="px-2 py-4">
                       {formatDate(record.startDate)}
                     </td>
-                    <td className="px-2 py-4">
+                    <td data-label="End date" className="px-2 py-4">
                       {record.endDate ? formatDate(record.endDate) : record.type ? "Ongoing" : "—"}
                     </td>
-                    <td className="px-2 py-4">{branchStatus(record)}</td>
-                    <td className="px-2 py-4">
+                    <td data-label="Status" className="px-2 py-4">{branchStatus(record)}</td>
+                    <td data-label="Actions" className="px-2 py-4">
                       <div className="flex gap-3">
                         {record.removed ? (
                           <button

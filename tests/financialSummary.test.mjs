@@ -6,6 +6,8 @@ import {
   amountToCents,
   amountInputValue,
   validFinancialWeek,
+  prepareFinancialDays,
+  emptyFinancialDays,
 } from "../src/data/financialSummary.mjs";
 test("Financial summaries preserve blanks and distinguish zero", () => {
   const empty = emptyFinancialValues();
@@ -50,4 +52,28 @@ test("Financial summaries require actual ISO Mondays", () => {
   assert.equal(validFinancialWeek("2026-10-19"), true);
   for (const value of ["2026-10-20", "2026-02-30", "2026-99-12", null, "bad"])
     assert.equal(validFinancialWeek(value), false);
+});
+
+test("Daily financial totals preserve blank columns, zero, costs and losses", () => {
+  const rows = emptyFinancialDays();
+  rows[0].totalSaleCents = 12345; rows[1].totalSaleCents = 100;
+  rows[0].costCents = 250; rows[1].costCents = 0;
+  rows[0].profitLossCents = -100;
+  const result = prepareFinancialDays(rows);
+  assert.equal(result.values.totalSaleCents, 12445);
+  assert.equal(result.values.costCents, 250);
+  assert.equal(result.daily[1].costCents, 0);
+  assert.equal(result.daily[2].costCents, null);
+  assert.equal(result.values.rentCents, null);
+  assert.equal(result.values.profitLossCents, -100);
+  assert.equal(prepareFinancialDays(emptyFinancialDays()).values.totalSaleCents, null);
+});
+test("Daily finances reject malformed days, negative costs and aggregate overflow", () => {
+  const rows = emptyFinancialDays();
+  rows[0].costCents = -1; assert.throws(() => prepareFinancialDays(rows));
+  rows[0].costCents = 1.5; assert.throws(() => prepareFinancialDays(rows));
+  rows[0].costCents = 100000000000; rows[1].costCents = 1;
+  assert.throws(() => prepareFinancialDays(rows));
+  assert.throws(() => prepareFinancialDays(rows.slice(1)));
+  assert.throws(() => prepareFinancialDays(emptyFinancialDays().map(row => ({ ...row, day: 0 }))));
 });

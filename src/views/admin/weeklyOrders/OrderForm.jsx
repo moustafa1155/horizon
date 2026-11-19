@@ -1,6 +1,8 @@
+import ProductInput from "components/productOptions";
+import useDatabaseRecords from "../../../hooks/useDatabaseRecords";
 import WeekSelector from "components/weekSelector";
-import { eligibleBranchNames } from "../../../data/branches.mjs";
-import { useState } from "react";
+import { stockCheckBranchNames as eligibleBranchNames } from "../weeklyStockChecks/stockCheckHelpers.mjs";
+import { useEffect, useState } from "react";
 import Card from "components/card";
 import { currentWeek } from "./orderHelpers.mjs";
 
@@ -9,13 +11,16 @@ const field =
 const blankItem = () => ({ product: "", quantity: "" });
 
 export default function OrderForm({ branchRecords, onPlace, onCancel }) {
+  const catalog = useDatabaseRecords("/api/products", "products");
   const [branch, setBranch] = useState("");
   const [manager, setManager] = useState("");
   const [week, setWeek] = useState(currentWeek);
   const [items, setItems] = useState([blankItem()]);
   const [notes, setNotes] = useState("");
+  const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const branches = eligibleBranchNames(branchRecords, week);
+  useEffect(() => { if (branches.length === 1) setBranch(branches[0]); else if (!branches.includes(branch)) setBranch(""); }, [branchRecords, week, branch]);
   function updateItem(index, key, value) {
     setItems((current) =>
       current.map((item, position) =>
@@ -23,9 +28,11 @@ export default function OrderForm({ branchRecords, onPlace, onCancel }) {
       )
     );
   }
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    setError(onPlace({ branch, manager, week, items, notes }));
+    if (pending) return;
+    setPending(true);
+    try { setError(await onPlace({ branch, manager, week, items, notes })); } catch { setError("Unable to save order."); } finally { setPending(false); }
   }
   return (
     <Card extra="p-6">
@@ -42,6 +49,7 @@ export default function OrderForm({ branchRecords, onPlace, onCancel }) {
         </p>
       )}
       <form onSubmit={submit} className="mt-5 space-y-5">
+        <fieldset disabled={pending} className="space-y-5">
         <div className="grid gap-4 md:grid-cols-3">
           <div>
             <label htmlFor="order-branch" className="text-sm font-medium">
@@ -103,15 +111,16 @@ export default function OrderForm({ branchRecords, onPlace, onCancel }) {
                   >
                     Product {index + 1}
                   </label>
-                  <input
+                  <ProductInput
+                    catalog={catalog}
                     id={`product-${index}`}
                     required
                     maxLength={160}
                     value={item.product}
-                    onChange={(event) =>
-                      updateItem(index, "product", event.target.value)
+                    onChange={(value) =>
+                      updateItem(index, "product", value)
                     }
-                    placeholder="Product name or code"
+                    placeholder="Search or select a product"
                     className={field}
                   />
                 </div>
@@ -194,6 +203,7 @@ export default function OrderForm({ branchRecords, onPlace, onCancel }) {
             Place weekly order
           </button>
         </div>
+        </fieldset>
       </form>
     </Card>
   );
